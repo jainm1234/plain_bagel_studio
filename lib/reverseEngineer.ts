@@ -15,6 +15,7 @@ export type StepGuess = {
 export type ReverseEngineerResult = {
   projectName: string;
   summary: string;
+  description?: string;
   materials: MaterialGuess[];
   steps: StepGuess[];
   schematic: SchematicGuess | null;
@@ -673,6 +674,7 @@ function reverseEngineerCode(
   return {
     projectName,
     summary,
+    description: summary,
     materials: hardware,
     steps: code.trim()
       ? hardware.length

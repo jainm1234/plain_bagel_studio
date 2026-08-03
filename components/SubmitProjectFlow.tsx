@@ -3,7 +3,6 @@
 import {
   ChangeEvent,
   DragEvent,
-  FormEvent,
   useEffect,
   useMemo,
   useRef,
@@ -94,10 +93,13 @@ type RelatedProject = {
 };
 
 type WizardStep =
-  | "social"
-  | "related"
   | "code"
-  | "review"
+  | "header"
+  | "description"
+  | "materials"
+  | "howto"
+  | "schematic"
+  | "scripts"
   | "done";
 
 type SchematicItem = {
@@ -171,18 +173,66 @@ const SKIP_PATH =
 
 const STEP_ORDER: WizardStep[] = [
   "code",
-  "social",
-  "related",
-  "review",
+  "header",
+  "description",
+  "materials",
+  "howto",
+  "schematic",
+  "scripts",
   "done",
 ];
 
+const STEPPER_STEPS: WizardStep[] = [
+  "code",
+  "header",
+  "description",
+  "materials",
+  "howto",
+  "schematic",
+  "scripts",
+];
+
+/** Steps shown in the preview wizard (after code upload). */
+const PREVIEW_STEPS: WizardStep[] = [
+  "header",
+  "description",
+  "materials",
+  "howto",
+  "schematic",
+  "scripts",
+];
+
 const STEP_LABEL: Record<WizardStep, string> = {
-  social: "social",
-  related: "related",
   code: "code",
-  review: "post",
+  header: "header",
+  description: "description",
+  materials: "materials",
+  howto: "steps",
+  schematic: "schematic",
+  scripts: "scripts",
   done: "done",
+};
+
+const STEP_TITLE: Record<WizardStep, string> = {
+  code: "Add project code",
+  header: "Project header",
+  description: "Description",
+  materials: "Materials",
+  howto: "Steps",
+  schematic: "Schematic",
+  scripts: "Scripts",
+  done: "Project submitted",
+};
+
+const STEP_BLURB: Record<WizardStep, string> = {
+  code: "Upload files or paste code. Optional social link helps the draft.",
+  header: "Title and subtitle.",
+  description: "Write what the project is. Changes show in the preview.",
+  materials: "Optional — skip if you don't need a parts list.",
+  howto: "Optional — skip if you don't need build steps.",
+  schematic: "Optional — upload a schematic image, or skip.",
+  scripts: "Review or add scripts before submitting.",
+  done: "Your project was sent.",
 };
 
 function isCodeFile(path: string, file?: File) {
@@ -402,6 +452,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const [lead, setLead] = useState("");
   const [postHtml, setPostHtml] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [aiReady, setAiReady] = useState<boolean | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [historyVersion, setHistoryVersion] = useState(0);
@@ -410,10 +462,29 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const historyIndexRef = useRef(0);
   const skipHistoryRef = useRef(false);
   const pendingSubmitRef = useRef(false);
+  const schematicUploadRef = useRef<HTMLInputElement | null>(null);
+  const scriptUploadRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/analyze-project");
+        const data = (await response.json()) as { aiReady?: boolean };
+        if (!cancelled) setAiReady(Boolean(data.aiReady));
+      } catch {
+        if (!cancelled) setAiReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const code = useMemo(() => combineFiles(files, paste), [files, paste]);
 
@@ -559,6 +630,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       buildProjectPostHtml({
         social,
         summary: parsed.summary,
+        description: parsed.description || parsed.summary,
       }),
     );
   }
@@ -616,7 +688,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   );
 
   const stepIndex = STEP_ORDER.indexOf(step);
-  const stepCount = STEP_ORDER.length;
 
   function reset() {
     setStep("code");
@@ -634,6 +705,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setLead("");
     setPostHtml("");
     setAnalyzing(false);
+    setDraftError(null);
     setDraggingFiles(false);
     resetHistory(EMPTY_DOC);
   }
@@ -693,7 +765,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     });
     applyDoc(snapshot);
     resetHistory(snapshot);
-    setStep("review");
+    setStep("header");
     setOpen(true);
   }
 
@@ -816,7 +888,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     event.target.value = "";
   }
 
-  function onDragEnter(event: DragEvent<HTMLDivElement>) {
+  function onDragEnter(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
     if (hasFileDrag(event.dataTransfer.types)) {
@@ -824,7 +896,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }
   }
 
-  function onDragOver(event: DragEvent<HTMLDivElement>) {
+  function onDragOver(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
     if (hasFileDrag(event.dataTransfer.types)) {
@@ -833,7 +905,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }
   }
 
-  function onDragLeave(event: DragEvent<HTMLDivElement>) {
+  function onDragLeave(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
     const next = event.relatedTarget as Node | null;
@@ -841,7 +913,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setDraggingFiles(false);
   }
 
-  async function onDrop(event: DragEvent<HTMLDivElement>) {
+  async function onDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
     setDraggingFiles(false);
@@ -876,14 +948,19 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   }
 
   function goBack() {
-    if (editPostId) {
+    if (editPostId && step === STEPPER_STEPS[0]) {
       closeFlow();
       return;
     }
-    if (step === "social") setStep("code");
-    else if (step === "related") setStep("social");
-    else if (step === "review") setStep("related");
-    else if (step === "done") setStep("review");
+    if (!editPostId && step === "code") return;
+    if (step === "done") {
+      setStep("scripts");
+      return;
+    }
+    const index = STEPPER_STEPS.indexOf(
+      step as (typeof STEPPER_STEPS)[number],
+    );
+    if (index > 0) setStep(STEPPER_STEPS[index - 1]);
   }
 
   function ensureDraft(name = projectName) {
@@ -922,16 +999,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     return title;
   }
 
-  function skipStep() {
-    if (step === "code") {
-      ensureDraft();
-      setStep("social");
-    } else if (step === "social") {
-      void enrichFromSocialAndContinue();
-    } else if (step === "related") setStep("review");
-    else if (step === "review") submitVerified();
-  }
-
   function addRelated(project: {
     title: string;
     href: string;
@@ -957,14 +1024,61 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   }
 
   async function analyzeAndContinue() {
+    const latestCode = combineFiles(files, paste).trim();
+    if (!latestCode) {
+      setDraftError("add code or files before creating a draft.");
+      return;
+    }
+
+    setDraftError(null);
     setAnalyzing(true);
+    setStep("header");
     try {
-      const parsed = await runAnalyze();
+      const namingFile =
+        folderHintFromFiles(files) ||
+        files[0]?.path ||
+        sourceLabelFromFiles(files, paste);
+      const url = socialLink.trim();
+      let socialTitle = "";
+      let socialDescription = "";
+      if (url) {
+        const hints = await fetchSocialHints(url);
+        socialTitle = hints.title;
+        socialDescription = hints.description;
+      }
+      const parsed = await analyzeProject({
+        code: latestCode,
+        filename: namingFile,
+        folderHint: folderHintFromFiles(files),
+        relatedTitles: related.map((project) => project.title),
+        socialTitle,
+        socialDescription,
+      });
       if (projectName.trim() && projectName !== "untitled project") {
         parsed.projectName = projectName.trim();
       }
-      applyAnalysis(parsed);
-      setStep("social");
+
+      if (parsed.aiError === "missing_api_key" || parsed.source !== "ai") {
+        setDraftError(
+          parsed.aiError === "missing_api_key"
+            ? "AI isn't configured yet. Put your Anthropic key in .env.local as ANTHROPIC_API_KEY, restart npm run dev, then try again."
+            : parsed.aiError
+              ? `AI draft failed: ${parsed.aiError}`
+              : "AI draft failed. No placeholder draft was applied.",
+        );
+        setAiReady(parsed.aiError !== "missing_api_key");
+        setStep("code");
+        return;
+      }
+
+      applyAnalysis(parsed, { replaceParts: true, social: url });
+    } catch (error) {
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "could not create a draft from your code.",
+      );
+      setStep("code");
     } finally {
       setAnalyzing(false);
     }
@@ -1011,7 +1125,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       }
     } finally {
       setAnalyzing(false);
-      setStep("related");
+      setStep("materials");
     }
   }
 
@@ -1214,10 +1328,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
 
   useEffect(() => {
     if (!user || !pendingSubmitRef.current || !open) return;
-    if (step !== "review") {
-      pendingSubmitRef.current = false;
-      return;
-    }
+    pendingSubmitRef.current = false;
     if (editPostId) saveEdit();
     else submitVerified();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after login
@@ -1231,331 +1342,727 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     openFlow();
   }
 
-  function onSocialContinue(event: FormEvent) {
-    event.preventDefault();
-    void enrichFromSocialAndContinue();
+  function goNext() {
+    if (step === "done") {
+      closeFlow();
+      return;
+    }
+    if (step === "code") {
+      void analyzeAndContinue();
+      return;
+    }
+    if (step === "scripts") {
+      if (editPostId) saveEdit();
+      else submitVerified();
+      return;
+    }
+    const index = STEPPER_STEPS.indexOf(
+      step as (typeof STEPPER_STEPS)[number],
+    );
+    if (index >= 0 && index < STEPPER_STEPS.length - 1) {
+      setStep(STEPPER_STEPS[index + 1]);
+    }
   }
 
-  function onRelatedContinue(event: FormEvent) {
-    event.preventDefault();
-    setStep("review");
+  const canGoBack = step !== "code" || Boolean(editPostId);
+
+  const nextLabel =
+    step === "code"
+      ? analyzing
+        ? "drafting…"
+        : "create a draft for me"
+      : step === "scripts"
+        ? editPostId
+          ? "save"
+          : "submit"
+        : step === "done"
+          ? "close"
+          : analyzing
+            ? "drafting…"
+            : "next";
+
+  const scriptList = scriptEntries(files, paste);
+  const showMaterials = parts.length > 0 || step === "materials";
+  const showHowto = steps.length > 0 || step === "howto";
+  const showSchematic = schematics.length > 0 || step === "schematic";
+  const showScripts = scriptList.length > 0 || step === "scripts";
+  const showDescription =
+    Boolean(postHtml.replace(/<[^>]+>/g, "").trim()) || step === "description";
+  const previewStepIndex = PREVIEW_STEPS.indexOf(
+    step as (typeof PREVIEW_STEPS)[number],
+  );
+
+  function goToPreviewStep(next: (typeof PREVIEW_STEPS)[number]) {
+    setStep(next);
   }
 
-  function onCodeContinue(event: FormEvent) {
-    event.preventDefault();
-    void analyzeAndContinue();
-  }
-
-  const stepProgress = editPostId
-    ? null
-    : `${String(stepIndex + 1).padStart(2, "0")} / ${stepCount} · ${STEP_LABEL[step]}`;
+  const previewToc: Array<{
+    label: string;
+    target: (typeof PREVIEW_STEPS)[number];
+  }> = [
+    { label: "header", target: "header" },
+    { label: "description", target: "description" },
+    { label: "materials", target: "materials" },
+    { label: "steps", target: "howto" },
+    { label: "schematic", target: "schematic" },
+    { label: "scripts", target: "scripts" },
+  ];
 
   const documentPane = (
     <aside
-      className={
-        step === "review"
-          ? "workbench-flow-pane workbench-flow-pane--preview workbench-flow-pane--doc"
-          : "workbench-flow-pane workbench-flow-pane--preview"
-      }
+      className="workbench-flow-pane workbench-flow-pane--preview"
       aria-label="Project post preview"
     >
-      <div className="workbench-flow-pane-head">
-        <p className="workbench-flow-step">preview</p>
-        <p className="workbench-flow-pane-role">draft</p>
-        <p className="workbench-flow-pane-note">
-          {step === "review"
-            ? "edit the post before submitting"
-            : "live post draft — edits appear here"}
-        </p>
-      </div>
-      <div className="workbench-preview-frame">
-      <div className="workbench-doc workbench-doc--project workbench-project--draft">
-        <header className="workbench-project-head">
-          <h1 className="workbench-project-title">
-            <input
-              className="workbench-project-title-input"
-              value={projectName}
-              onChange={(event) => {
-                setProjectName(event.target.value);
-              }}
-              placeholder="project title"
-              aria-label="Project title"
-            />
-            {user?.displayName || user?.handle ? (
-              <>
-                {" "}
-                <span className="workbench-project-by">by</span>{" "}
-                {user.displayName || user.handle}
-              </>
-            ) : null}
+      <div
+        className={
+          analyzing
+            ? "workbench-preview-stage is-pulsing"
+            : "workbench-preview-stage"
+        }
+      >
+        <div className="workbench-doc workbench-doc--project workbench-project--draft workbench-project--preview-readonly">
+          <header
+            className={
+              step === "header"
+                ? "workbench-project-head is-active-step workbench-preview-jump"
+                : "workbench-project-head workbench-preview-jump"
+            }
+            role="button"
+            tabIndex={0}
+            onClick={() => goToPreviewStep("header")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                goToPreviewStep("header");
+              }
+            }}
+            aria-label="Edit header"
+          >
+            <h1 className="workbench-project-title">
+              {projectName.trim() || "project title"}
+              {user?.displayName || user?.handle ? (
+                <>
+                  {" "}
+                  <span className="workbench-project-by">by</span>{" "}
+                  {user.displayName || user.handle}
+                </>
+              ) : null}
+              {socialLink.trim() ? (
+                <>
+                  {" "}
+                  <span className="workbench-project-by">on</span>{" "}
+                  <a
+                    className="workbench-project-social"
+                    href={socialLink.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {socialHostLabel(socialLink)}
+                  </a>
+                </>
+              ) : null}
+            </h1>
+            {lead.trim() ? (
+              <p className="workbench-project-lead">{lead.trim()}</p>
+            ) : (
+              <p className="workbench-project-lead workbench-project-copy--muted">
+                project subtitle
+              </p>
+            )}
             {socialLink.trim() ? (
-              <>
-                {" "}
-                <span className="workbench-project-by">on</span>{" "}
+              /instagram\.com/i.test(socialLink) ? (
+                <div
+                  className="workbench-project-reel workbench-project-reel--under-subtitle"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <iframe
+                    src={`${socialLink.replace(/\/$/, "")}/embed`}
+                    title="project social embed"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    allowFullScreen
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
                 <a
-                  className="workbench-project-social"
+                  className="workbench-project-link"
                   href={socialLink.trim()}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  {socialHostLabel(socialLink)}
+                  open on {socialHostLabel(socialLink)}
                 </a>
-              </>
+              )
             ) : null}
-          </h1>
-          <textarea
-            className="workbench-project-lead--edit"
-            value={lead}
-            onChange={(event) => setLead(event.target.value)}
-            placeholder="project subtitle…"
-            rows={2}
-            aria-label="Project subtitle"
-          />
-          {socialLink.trim() ? (
-            /instagram\.com/i.test(socialLink) ? (
-              <div className="workbench-project-reel workbench-project-reel--under-subtitle">
-                <iframe
-                  src={`${socialLink.replace(/\/$/, "")}/embed`}
-                  title="project social embed"
-                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                  allowFullScreen
-                  loading="lazy"
-                />
-              </div>
-            ) : (
-              <a
-                className="workbench-project-link"
-                href={socialLink.trim()}
-                target="_blank"
-                rel="noopener noreferrer"
+          </header>
+
+          <nav className="workbench-project-toc" aria-label="Table of contents">
+            {previewToc.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={
+                  step === item.target
+                    ? "workbench-preview-toc-btn is-current"
+                    : "workbench-preview-toc-btn"
+                }
+                onClick={() => goToPreviewStep(item.target)}
               >
-                open on {socialHostLabel(socialLink)}
-              </a>
-            )
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          {showDescription ? (
+            <section
+              id="draft-description"
+              className={
+                step === "description"
+                  ? "workbench-project-section is-active-step workbench-preview-jump"
+                  : "workbench-project-section workbench-preview-jump"
+              }
+              role="button"
+              tabIndex={0}
+              onClick={() => goToPreviewStep("description")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToPreviewStep("description");
+                }
+              }}
+              aria-label="Edit description"
+            >
+              <h2 className="workbench-project-heading">description</h2>
+              {postHtml.replace(/<[^>]+>/g, "").trim() ? (
+                <div
+                  className="workbench-project-copy"
+                  dangerouslySetInnerHTML={{ __html: postHtml }}
+                />
+              ) : (
+                <p className="workbench-project-copy workbench-project-copy--muted">
+                  description appears here
+                </p>
+              )}
+            </section>
           ) : null}
-        </header>
 
+          {showMaterials ? (
+            <section
+              id="draft-materials"
+              className={
+                step === "materials"
+                  ? "workbench-project-section is-active-step workbench-preview-jump"
+                  : "workbench-project-section workbench-preview-jump"
+              }
+              role="button"
+              tabIndex={0}
+              onClick={() => goToPreviewStep("materials")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToPreviewStep("materials");
+                }
+              }}
+              aria-label="Edit materials"
+            >
+              <h2 className="workbench-project-heading">materials</h2>
+              {parts.some((part) => part.name.trim()) ? (
+                <div className="workbench-project-materials">
+                  {parts
+                    .filter((part) => part.name.trim())
+                    .map((part) => {
+                      const buyHref =
+                        part.buyUrl.trim() || amazonSearchUrl(part.name);
+                      return (
+                        <div
+                          key={part.id}
+                          className="workbench-project-material"
+                        >
+                          <div className="workbench-project-material-copy">
+                            <p className="workbench-project-material-name">
+                              {part.name}
+                            </p>
+                            {part.note?.trim() ? (
+                              <p className="workbench-project-material-note">
+                                {part.note}
+                              </p>
+                            ) : null}
+                          </div>
+                          {buyHref ? (
+                            <a
+                              className="workbench-project-material-buy"
+                              href={buyHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              buy
+                            </a>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="workbench-project-copy workbench-project-copy--muted">
+                  no materials yet
+                </p>
+              )}
+            </section>
+          ) : null}
 
-        <nav className="workbench-project-toc" aria-label="Table of contents">
-          {(
-            [
-              "description",
-              "materials",
-              "steps",
-              "schematic",
-              "scripts",
-            ] as const
-          ).map((label) => (
-            <a key={label} href={`#draft-${label}`}>
-              {label}
-            </a>
-          ))}
-        </nav>
+          {showHowto ? (
+            <section
+              id="draft-steps"
+              className={
+                step === "howto"
+                  ? "workbench-project-section is-active-step workbench-preview-jump"
+                  : "workbench-project-section workbench-preview-jump"
+              }
+              role="button"
+              tabIndex={0}
+              onClick={() => goToPreviewStep("howto")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToPreviewStep("howto");
+                }
+              }}
+              aria-label="Edit steps"
+            >
+              <h2 className="workbench-project-heading">steps</h2>
+              {steps.some(
+                (item) =>
+                  item.title.trim() ||
+                  item.details.some((detail) => detail.trim()),
+              ) ? (
+                <ol className="workbench-project-steps">
+                  {steps.map((item, index) => (
+                    <li key={item.id} className="workbench-project-step">
+                      <span className="workbench-project-step-num">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <h3 className="workbench-project-step-title">
+                          {item.title.trim() || "step"}
+                        </h3>
+                        <ul className="workbench-project-step-details">
+                          {item.details
+                            .filter((detail) => detail.trim())
+                            .map((detail) => (
+                              <li key={detail}>{detail}</li>
+                            ))}
+                        </ul>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="workbench-project-copy workbench-project-copy--muted">
+                  no steps yet
+                </p>
+              )}
+            </section>
+          ) : null}
 
-        <section
-          id="draft-description"
-          className="workbench-project-section"
-        >
-          <h2 className="workbench-project-heading">description</h2>
-          <WorkbenchRichEditor
-            value={postHtml}
-            onChange={(html) => {
-              setPostHtml(html);
-              setResult((current) =>
-                current
-                  ? {
-                      ...current,
-                      summary: lead || html,
-                      projectName: projectName || current.projectName,
-                    }
-                  : {
-                      projectName: projectName || "untitled project",
-                      summary: lead || html,
-                      materials: [],
-                      steps: [],
-                      schematic: null,
-                    },
-              );
+          {showSchematic ? (
+            <section
+              id="draft-schematic"
+              className={
+                step === "schematic"
+                  ? "workbench-project-section is-active-step workbench-preview-jump"
+                  : "workbench-project-section workbench-preview-jump"
+              }
+              role="button"
+              tabIndex={0}
+              onClick={() => goToPreviewStep("schematic")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToPreviewStep("schematic");
+                }
+              }}
+              aria-label="Edit schematic"
+            >
+              <h2 className="workbench-project-heading">schematic</h2>
+              {schematics.length > 0 ? (
+                <div className="workbench-schematic-list">
+                  {schematics.map((item, index) => (
+                    <div key={item.id} className="workbench-schematic-card">
+                      {item.boardLabel.trim() ? (
+                        <h3 className="workbench-project-subheading">
+                          {item.boardLabel}
+                        </h3>
+                      ) : null}
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          className="workbench-schematic-upload"
+                          src={item.imageUrl}
+                          alt={`Schematic ${index + 1}`}
+                        />
+                      ) : (
+                        <WorkbenchSchematic
+                          boardLabel={item.boardLabel}
+                          buttonPin={item.buttonPin}
+                          ledPin={item.ledPin}
+                          hasOnboardMic={item.hasOnboardMic}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="workbench-project-copy workbench-project-copy--muted">
+                  no schematic yet
+                </p>
+              )}
+            </section>
+          ) : null}
+
+          {showScripts ? (
+            <section
+              id="draft-scripts"
+              className={
+                step === "scripts"
+                  ? "workbench-project-section is-active-step workbench-preview-jump"
+                  : "workbench-project-section workbench-preview-jump"
+              }
+              role="button"
+              tabIndex={0}
+              onClick={() => goToPreviewStep("scripts")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToPreviewStep("scripts");
+                }
+              }}
+              aria-label="Edit scripts"
+            >
+              <h2 className="workbench-project-heading">scripts</h2>
+              {scriptList.length > 0 ? (
+                scriptList.map((script, index) => {
+                  const name = fileBasename(script.name);
+                  return (
+                    <div
+                      key={`${script.name}:${index}`}
+                      className="workbench-project-script"
+                    >
+                      <div className="workbench-project-script-head">
+                        <h3 className="workbench-project-subheading">
+                          <span className="workbench-project-step-num">
+                            {String(index + 1).padStart(2, "0")} ·{" "}
+                          </span>
+                          {name}
+                        </h3>
+                      </div>
+                      <pre className="workbench-project-pre">
+                        {script.content}
+                      </pre>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="workbench-project-copy workbench-project-copy--muted">
+                  no scripts yet
+                </p>
+              )}
+            </section>
+          ) : null}
+        </div>
+      </div>
+    </aside>
+  );
+
+  const formPane = (
+    <section className="workbench-flow-pane workbench-flow-pane--form">
+      <div className="workbench-flow-sidebar-top">
+        <div className="workbench-flow-sidebar-copy">
+          <h2
+            className={
+              analyzing
+                ? "workbench-flow-title is-pulsing"
+                : "workbench-flow-title"
+            }
+          >
+            {analyzing ? "Drafting…" : STEP_TITLE[step]}
+          </h2>
+          <p className="workbench-flow-blurb">
+            {analyzing
+              ? "Building your draft from the code."
+              : STEP_BLURB[step]}
+          </p>
+        </div>
+        {step !== "code" ? (
+          <button
+            type="button"
+            className="workbench-flow-close"
+            onClick={closeFlow}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
+
+      <div className="workbench-flow-sidebar-body">
+        {step === "code" ? (
+          <form
+            className={
+              draggingFiles
+                ? "workbench-flow-form is-dragging-files"
+                : "workbench-flow-form"
+            }
+            onSubmit={(event) => {
+              event.preventDefault();
+              goNext();
             }}
-            placeholder="write the description…"
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-          />
-        </section>
+            onDragEnter={onDragEnter}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <div className="workbench-dropzone-actions">
+              <label className="workbench-submit-button workbench-submit-button--ghost">
+                choose files
+                <input
+                  type="file"
+                  multiple
+                  className="workbench-sr-only"
+                  onChange={onFiles}
+                />
+              </label>
+              <label className="workbench-submit-button workbench-submit-button--ghost">
+                choose folder
+                <input
+                  type="file"
+                  className="workbench-sr-only"
+                  // @ts-expect-error webkitdirectory is non-standard
+                  webkitdirectory=""
+                  multiple
+                  onChange={onFiles}
+                />
+              </label>
+            </div>
+            {files.length > 0 ? (
+              <ul className="workbench-file-list">
+                {files.map((file) => (
+                  <li key={file.path}>
+                    <span>{file.path}</span>
+                    <button
+                      type="button"
+                      className="workbench-file-remove"
+                      onClick={() => removeFile(file.path)}
+                      aria-label={`Remove ${file.path}`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <textarea
+              className="workbench-submit-textarea"
+              rows={10}
+              placeholder="paste code"
+              value={paste}
+              onChange={(event) => setPaste(event.target.value)}
+              aria-label="Paste code"
+            />
+            <label className="workbench-flow-field">
+              <span className="workbench-flow-field-label">
+                Social link (optional)
+              </span>
+              <input
+                className="workbench-submit-input"
+                type="url"
+                placeholder="https://…"
+                value={socialLink}
+                onChange={(event) => setSocialLink(event.target.value)}
+                aria-label="Social media link"
+              />
+            </label>
+            {fileSummary ? (
+              <p className="workbench-flow-copy">{fileSummary}</p>
+            ) : null}
+            {aiReady === false ? (
+              <p className="workbench-flow-error">
+                AI isn&apos;t configured. Add <code>ANTHROPIC_API_KEY</code> to{" "}
+                <code>.env.local</code>, restart <code>npm run dev</code>, then
+                try again. Until then, this button won&apos;t invent a real
+                draft.
+              </p>
+            ) : null}
+            {draftError ? (
+              <p className="workbench-flow-error">{draftError}</p>
+            ) : null}
+          </form>
+        ) : null}
 
-        <section id="draft-materials" className="workbench-project-section">
-          <div className="workbench-project-section-head">
-            <h2 className="workbench-project-heading">materials</h2>
+        {step === "header" ? (
+          <form
+            className="workbench-flow-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              goNext();
+            }}
+          >
+            <label className="workbench-flow-field">
+              <span className="workbench-flow-field-label">Title</span>
+              <input
+                className="workbench-submit-input"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="project title"
+                aria-label="Project title"
+                autoFocus={!analyzing}
+                disabled={analyzing}
+              />
+            </label>
+            <label className="workbench-flow-field">
+              <span className="workbench-flow-field-label">Subtitle</span>
+              <textarea
+                className="workbench-submit-textarea"
+                rows={3}
+                value={lead}
+                onChange={(event) => setLead(event.target.value)}
+                placeholder="short subtitle…"
+                aria-label="Project subtitle"
+                disabled={analyzing}
+              />
+            </label>
+            <label className="workbench-flow-field">
+              <span className="workbench-flow-field-label">
+                Social link (optional)
+              </span>
+              <input
+                className="workbench-submit-input"
+                type="url"
+                placeholder="https://…"
+                value={socialLink}
+                onChange={(event) => setSocialLink(event.target.value)}
+                aria-label="Social media link"
+                disabled={analyzing}
+              />
+            </label>
+          </form>
+        ) : null}
+
+        {step === "description" ? (
+          <div className="workbench-flow-form">
+            <WorkbenchRichEditor
+              value={postHtml}
+              onChange={(html) => setPostHtml(html)}
+              placeholder="write the description…"
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+            />
+          </div>
+        ) : null}
+
+        {step === "materials" ? (
+          <div className="workbench-flow-form">
             <button
               type="button"
-              className="workbench-doc-add"
+              className="workbench-submit-button workbench-submit-button--ghost"
               onClick={addBlankPart}
             >
-              + add
+              + add material
             </button>
+            {parts.map((part) => (
+              <div key={part.id} className="workbench-flow-stack-item">
+                <input
+                  className="workbench-submit-input"
+                  value={part.name}
+                  onChange={(event) =>
+                    updatePart(part.id, { name: event.target.value })
+                  }
+                  placeholder="material name"
+                  aria-label="Material name"
+                />
+                <input
+                  className="workbench-submit-input"
+                  value={part.note || ""}
+                  onChange={(event) =>
+                    updatePart(part.id, { note: event.target.value })
+                  }
+                  placeholder="note (optional)"
+                  aria-label="Material note"
+                />
+                <input
+                  className="workbench-submit-input"
+                  value={part.buyUrl}
+                  onChange={(event) =>
+                    updatePart(part.id, { buyUrl: event.target.value })
+                  }
+                  placeholder="buy url (optional)"
+                  aria-label="Buy link"
+                />
+                <button
+                  type="button"
+                  className="workbench-doc-remove"
+                  onClick={() => removePart(part.id)}
+                >
+                  remove
+                </button>
+              </div>
+            ))}
           </div>
-          {parts.length > 0 ? (
-            <div className="workbench-project-materials">
-              {parts.map((part) => {
-                const buyHref =
-                  part.buyUrl.trim() ||
-                  (part.name.trim() ? amazonSearchUrl(part.name) : "");
-                return (
-                  <div key={part.id} className="workbench-project-material">
-                    <div className="workbench-project-material-copy">
-                      <input
-                        data-part-name={part.id}
-                        className="workbench-project-material-name-input workbench-project-material-name"
-                        value={part.name}
-                        onChange={(event) =>
-                          updatePart(part.id, { name: event.target.value })
-                        }
-                        placeholder="material name"
-                        aria-label="Material name"
-                      />
-                      <input
-                        className="workbench-project-material-note-input workbench-project-material-note"
-                        value={part.note || ""}
-                        onChange={(event) =>
-                          updatePart(part.id, { note: event.target.value })
-                        }
-                        placeholder="note"
-                        aria-label="Material note"
-                      />
-                      <input
-                        className="workbench-project-material-buy-input"
-                        value={part.buyUrl}
-                        onChange={(event) =>
-                          updatePart(part.id, { buyUrl: event.target.value })
-                        }
-                        placeholder="url to buy"
-                        aria-label="Buy link"
-                      />
-                    </div>
-                    <div
-                      className="workbench-project-material-pic workbench-project-material-pic--empty"
-                      aria-hidden="true"
-                    />
-                    <div className="workbench-project-material-actions">
-                      {buyHref ? (
-                        <a
-                          className="workbench-project-material-buy"
-                          href={buyHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          buy
-                        </a>
-                      ) : (
-                        <span className="workbench-project-material-buy">
-                          buy
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        className="workbench-doc-remove"
-                        onClick={() => removePart(part.id)}
-                        aria-label={`Remove ${part.name || "material"}`}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="workbench-project-copy">
-              no materials yet —{" "}
-              <button
-                type="button"
-                className="workbench-doc-add"
-                onClick={addBlankPart}
-              >
-                add one
-              </button>
-            </p>
-          )}
-        </section>
+        ) : null}
 
-        <section id="draft-steps" className="workbench-project-section">
-          <div className="workbench-project-section-head">
-            <h2 className="workbench-project-heading">steps</h2>
+        {step === "howto" ? (
+          <div className="workbench-flow-form">
             <button
               type="button"
-              className="workbench-doc-add"
+              className="workbench-submit-button workbench-submit-button--ghost"
               onClick={addBlankStep}
             >
-              + add
+              + add step
             </button>
+            {steps.map((item, index) => (
+              <div key={item.id} className="workbench-flow-stack-item">
+                <input
+                  className="workbench-submit-input"
+                  value={item.title}
+                  onChange={(event) =>
+                    updateStep(item.id, { title: event.target.value })
+                  }
+                  placeholder={`step ${index + 1} title`}
+                  aria-label={`Step ${index + 1} title`}
+                />
+                <textarea
+                  className="workbench-submit-textarea"
+                  rows={3}
+                  value={item.details.join("\n")}
+                  onChange={(event) =>
+                    updateStep(item.id, {
+                      details: event.target.value
+                        ? event.target.value.split("\n")
+                        : [""],
+                    })
+                  }
+                  placeholder="details…"
+                  aria-label={`Step ${index + 1} detail`}
+                />
+                <button
+                  type="button"
+                  className="workbench-doc-remove"
+                  onClick={() => removeStep(item.id)}
+                >
+                  remove
+                </button>
+              </div>
+            ))}
           </div>
-          {steps.length > 0 ? (
-            <ol className="workbench-project-steps">
-              {steps.map((item, index) => (
-                <li key={item.id} className="workbench-project-step">
-                  <span className="workbench-project-step-num">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div className="workbench-project-step-body">
-                    <div className="workbench-doc-section-head">
-                      <input
-                        data-step-title={item.id}
-                        className="workbench-project-step-title-input workbench-project-step-title"
-                        value={item.title}
-                        onChange={(event) =>
-                          updateStep(item.id, { title: event.target.value })
-                        }
-                        placeholder="step title"
-                        aria-label={`Step ${index + 1} title`}
-                      />
-                      <button
-                        type="button"
-                        className="workbench-doc-remove"
-                        onClick={() => removeStep(item.id)}
-                        aria-label={`Remove step ${index + 1}`}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <textarea
-                      className="workbench-project-step-detail-input"
-                      value={item.details.join("\n")}
-                      onChange={(event) =>
-                        updateStep(item.id, {
-                          details: event.target.value
-                            ? event.target.value.split("\n")
-                            : [""],
-                        })
-                      }
-                      placeholder="detail"
-                      rows={3}
-                      aria-label={`Step ${index + 1} detail`}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="workbench-project-copy">
-              no steps yet —{" "}
-              <button
-                type="button"
-                className="workbench-doc-add"
-                onClick={addBlankStep}
-              >
-                add one
-              </button>
-            </p>
-          )}
-        </section>
+        ) : null}
 
-        <section id="draft-schematic" className="workbench-project-section">
-          <div className="workbench-project-section-head">
-            <h2 className="workbench-project-heading">schematic</h2>
-            <label className="workbench-doc-add workbench-schematic-upload-btn">
-              upload
+        {step === "schematic" ? (
+          <div className="workbench-flow-form">
+            <label className="workbench-submit-button workbench-submit-button--ghost">
+              upload schematic
               <input
                 type="file"
                 accept="image/*"
@@ -1563,179 +2070,103 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 onChange={onSchematicImageUpload}
               />
             </label>
+            {schematics.map((item, index) => (
+              <div key={item.id} className="workbench-flow-stack-item">
+                <input
+                  className="workbench-submit-input"
+                  value={item.boardLabel}
+                  onChange={(event) =>
+                    updateSchematic(item.id, {
+                      boardLabel: event.target.value,
+                    })
+                  }
+                  aria-label={`Schematic ${index + 1} label`}
+                />
+                <button
+                  type="button"
+                  className="workbench-doc-remove"
+                  onClick={() => removeSchematic(item.id)}
+                >
+                  remove
+                </button>
+              </div>
+            ))}
           </div>
-          {schematics.length > 0 ? (
-            <div className="workbench-schematic-list">
-              {schematics.map((item, index) => (
-                <div key={item.id} className="workbench-schematic-card">
-                  <div className="workbench-doc-section-head">
-                    <input
-                      className="workbench-project-material-name-input"
-                      value={item.boardLabel}
-                      onChange={(event) =>
-                        updateSchematic(item.id, {
-                          boardLabel: event.target.value,
-                        })
-                      }
-                      aria-label={`Schematic ${index + 1} label`}
-                    />
-                    <div className="workbench-file-actions">
-                      <button
-                        type="button"
-                        className="workbench-project-link"
-                        onClick={(event) => {
-                          if (item.imageUrl) {
-                            const name =
-                              item.boardLabel.trim() ||
-                              filenameFromDataUrl(
-                                item.imageUrl,
-                                `schematic-${index + 1}`,
-                              );
-                            downloadHref(name, item.imageUrl);
-                            return;
-                          }
-                          const card = (
-                            event.currentTarget as HTMLElement
-                          ).closest(".workbench-schematic-card");
-                          const svg = card?.querySelector("svg");
-                          if (!svg) return;
-                          const markup = new XMLSerializer().serializeToString(
-                            svg,
-                          );
-                          downloadTextFile(
-                            `schematic-${index + 1}.svg`,
-                            markup,
-                            "image/svg+xml;charset=utf-8",
-                          );
-                        }}
-                      >
-                        download
-                      </button>
-                      <button
-                        type="button"
-                        className="workbench-doc-remove"
-                        onClick={() => removeSchematic(item.id)}
-                        aria-label={`Remove schematic ${index + 1}`}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                  {item.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      className="workbench-schematic-upload"
-                      src={item.imageUrl}
-                      alt={`Schematic ${index + 1}`}
-                    />
-                  ) : (
-                    <WorkbenchSchematic
-                      boardLabel={item.boardLabel}
-                      buttonPin={item.buttonPin}
-                      ledPin={item.ledPin}
-                      hasOnboardMic={item.hasOnboardMic}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
+        ) : null}
 
-        <section id="draft-scripts" className="workbench-project-section">
-          <div className="workbench-project-section-head">
-            <h2 className="workbench-project-heading">scripts</h2>
-            <label className="workbench-doc-add workbench-schematic-upload-btn">
-              upload
-              <input
-                type="file"
-                accept=".ino,.py,.cpp,.c,.h,.hpp,.js,.jsx,.ts,.tsx,.mjs,.txt,.md,.json,.toml,.yml,.yaml,.rs,.go,.java,.kt,.swift,.rb,.php,.cs,.lua,.sh,.html,.css,.sql,.r"
-                multiple
-                hidden
-                onChange={onFiles}
-              />
-            </label>
-          </div>
-          {scriptEntries(files, paste).map((script, index) => {
-            const name = fileBasename(script.name);
-            const ext = name.includes(".")
-              ? `.${name.split(".").pop()}`
-              : "";
-            const isPaste = script.name === "pasted-code.txt";
-            return (
-              <div
-                key={`${script.name}:${index}`}
-                className="workbench-project-script"
-              >
-                <div className="workbench-project-script-head">
-                  <h3 className="workbench-project-subheading">
-                    <span className="workbench-project-step-num">
-                      {String(index + 1).padStart(2, "0")} ·{" "}
-                    </span>
-                    <input
-                      data-script-name={script.name}
-                      className="workbench-project-script-name-input"
-                      defaultValue={name}
-                      key={`name:${script.name}`}
-                      onBlur={(event) => {
-                        const nextName = event.target.value.trim() || name;
-                        if (nextName === name) return;
-                        if (isPaste) {
-                          setFiles((current) => [
-                            ...current,
-                            { path: nextName, content: script.content },
-                          ]);
-                          setPaste("");
-                          return;
-                        }
-                        updateFile(script.name, { path: nextName });
-                      }}
-                      placeholder="filename"
-                      aria-label={`Script ${index + 1} name`}
-                    />
-                  </h3>
-                  <div className="workbench-file-actions">
+        {step === "scripts" ? (
+          <form
+            className={
+              draggingFiles
+                ? "workbench-flow-form is-dragging-files"
+                : "workbench-flow-form"
+            }
+            onSubmit={(event) => {
+              event.preventDefault();
+              goNext();
+            }}
+            onDragEnter={onDragEnter}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            <div className="workbench-dropzone-actions">
+              <label className="workbench-submit-button workbench-submit-button--ghost">
+                choose files
+                <input
+                  type="file"
+                  multiple
+                  className="workbench-sr-only"
+                  onChange={onFiles}
+                />
+              </label>
+              <label className="workbench-submit-button workbench-submit-button--ghost">
+                choose folder
+                <input
+                  type="file"
+                  className="workbench-sr-only"
+                  // @ts-expect-error webkitdirectory is non-standard
+                  webkitdirectory=""
+                  multiple
+                  onChange={onFiles}
+                />
+              </label>
+            </div>
+            {files.length > 0 ? (
+              <ul className="workbench-file-list">
+                {files.map((file) => (
+                  <li key={file.path}>
+                    <span>{file.path}</span>
                     <button
                       type="button"
-                      className="workbench-project-link"
-                      onClick={() => downloadTextFile(name, script.content)}
-                    >
-                      download{ext ? ` ${ext}` : ""}
-                    </button>
-                    <button
-                      type="button"
-                      className="workbench-doc-remove"
-                      onClick={() => removeScript(script.name)}
-                      aria-label={`Remove ${name}`}
+                      className="workbench-file-remove"
+                      onClick={() => removeFile(file.path)}
+                      aria-label={`Remove ${file.path}`}
                     >
                       ×
                     </button>
-                  </div>
-                </div>
-                <textarea
-                  className="workbench-project-pre workbench-project-script-editor"
-                  value={script.content}
-                  onChange={(event) => {
-                    if (isPaste) {
-                      setPaste(event.target.value);
-                      return;
-                    }
-                    updateFile(script.name, {
-                      content: event.target.value,
-                    });
-                  }}
-                  placeholder="code…"
-                  rows={8}
-                  spellCheck={false}
-                  aria-label={`${name} content`}
-                />
-              </div>
-            );
-          })}
-        </section>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <textarea
+              className="workbench-submit-textarea"
+              rows={6}
+              placeholder="paste code"
+              value={paste}
+              onChange={(event) => setPaste(event.target.value)}
+              aria-label="Paste code"
+            />
+          </form>
+        ) : null}
+
+        {step === "done" ? (
+          <div className="workbench-flow-form">
+            <p className="workbench-flow-hint">your project was sent.</p>
+          </div>
+        ) : null}
       </div>
-      </div>
-    </aside>
+    </section>
   );
 
   const modal =
@@ -1751,351 +2182,149 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
             }}
           >
             <div
-              className="workbench-flow-modal"
+              className={
+                step === "code" && draggingFiles
+                  ? "workbench-flow-modal is-dragging-files"
+                  : "workbench-flow-modal"
+              }
               onClick={(event) => event.stopPropagation()}
+              onDragEnter={step === "code" ? onDragEnter : undefined}
+              onDragOver={step === "code" ? onDragOver : undefined}
+              onDragLeave={step === "code" ? onDragLeave : undefined}
+              onDrop={step === "code" ? onDrop : undefined}
             >
-              <div className="workbench-flow-top">
-                <p className="workbench-flow-kicker">
-                  {editPostId ? "edit post" : "submit a project"}
-                </p>
-                <div className="workbench-flow-top-actions">
-                  <button
-                    type="button"
-                    className="workbench-flow-close"
-                    onClick={closeFlow}
-                    aria-label="Close"
-                  >
-                    ×
-                  </button>
-                </div>
+              {step === "code" ? (
+                <button
+                  type="button"
+                  className="workbench-flow-close workbench-flow-close--modal"
+                  onClick={closeFlow}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              ) : null}
+              <div
+                className={
+                  step === "code"
+                    ? "workbench-flow-body workbench-flow-body--code"
+                    : "workbench-flow-body"
+                }
+              >
+                {step === "code" ? null : documentPane}
+                {formPane}
               </div>
 
               <div
                 className={
-                  step === "review"
-                    ? "workbench-flow-split workbench-flow-split--review"
-                    : "workbench-flow-split"
+                  step === "code"
+                    ? "workbench-flow-footer workbench-flow-footer--code"
+                    : "workbench-flow-footer"
                 }
               >
-                {step === "review" ? (
-                  <div className="workbench-review-bar">
-                    <div className="workbench-review-bar-copy">
-                      {stepProgress ? (
-                        <p className="workbench-flow-step">{stepProgress}</p>
-                      ) : null}
-                      <p className="workbench-flow-question">
-                        {editPostId ? "edit post" : "fill in · your post"}
-                      </p>
-                    </div>
-                    <div className="workbench-flow-actions workbench-flow-actions--review">
-                      <button
-                        className="workbench-submit-button workbench-submit-button--ghost"
-                        type="button"
-                        onClick={goBack}
-                      >
-                        {editPostId ? "cancel" : "back"}
-                      </button>
-                      <button
-                        className="workbench-submit-button"
-                        type="button"
-                        onClick={editPostId ? saveEdit : submitVerified}
-                      >
-                        {editPostId ? "save" : "submit"}
-                      </button>
-                    </div>
-                  </div>
+                <button
+                  className="workbench-submit-button workbench-submit-button--ghost"
+                  type="button"
+                  onClick={goBack}
+                  disabled={!canGoBack || analyzing}
+                >
+                  back
+                </button>
+
+                {step === "code" ? (
+                  <div className="workbench-flow-footer-spacer" aria-hidden="true" />
                 ) : (
-                <section className="workbench-flow-pane workbench-flow-pane--form">
-                  <div className="workbench-flow-pane-head">
-                    {stepProgress ? (
-                      <p className="workbench-flow-step">{stepProgress}</p>
-                    ) : (
-                      <p className="workbench-flow-step">edit</p>
-                    )}
-                    <p className="workbench-flow-pane-role">fill in</p>
-                    <p className="workbench-flow-pane-note">
-                      {step === "code"
-                        ? "upload or paste the project code"
-                        : step === "social"
-                          ? "optional social context for the draft"
-                          : step === "related"
-                            ? "link related work bench posts"
-                            : step === "done"
-                              ? "project submitted"
-                              : "complete this step"}
-                    </p>
-                  </div>
-                  {step === "social" ? (
-                    <form
-                      className="workbench-flow-form"
-                      onSubmit={onSocialContinue}
-                    >
-                      <input
-                        className="workbench-submit-input"
-                        type="url"
-                        placeholder="https://…"
-                        value={socialLink}
-                        onChange={(e) => setSocialLink(e.target.value)}
-                        aria-label="Social media link"
-                        autoFocus
-                      />
-                      <p className="workbench-flow-hint">
-                        used with your scripts so ai can draft the project
-                        details.
-                      </p>
-                      <div className="workbench-flow-actions">
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={goBack}
-                          disabled={analyzing}
-                        >
-                          back
-                        </button>
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={skipStep}
-                          disabled={analyzing}
-                        >
-                          skip
-                        </button>
-                        <button
-                          className="workbench-submit-button"
-                          type="submit"
-                          disabled={analyzing}
-                        >
-                          {analyzing ? "analyzing…" : "continue"}
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
-
-                  {step === "related" ? (
-                    <form
-                      className="workbench-flow-form"
-                      onSubmit={onRelatedContinue}
-                    >
-                      {related.length > 0 ? (
-                        <div className="workbench-tiles">
-                          {related.map((project) => (
-                            <div key={project.href} className="workbench-tile">
-                              <div className="workbench-tile-main">
-                                <p className="workbench-tile-title">
-                                  {project.title}
-                                  {project.authorHandle
-                                    ? ` by ${project.authorHandle}`
-                                    : ""}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                className="workbench-tile-remove"
-                                onClick={() => removeRelated(project.href)}
-                                aria-label={`Remove ${project.title}`}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <div className="workbench-part-search">
-                        <input
-                          className="workbench-submit-input"
-                          type="search"
-                          placeholder="search…"
-                          value={relatedQuery}
-                          onChange={(event) =>
-                            setRelatedQuery(event.target.value)
-                          }
-                          aria-label="Search work bench posts"
-                          autoFocus
-                        />
-                        <div className="workbench-part-results workbench-part-results--static">
-                          {relatedSuggestions.length > 0 ? (
-                            relatedSuggestions.map((project) => (
-                              <button
-                                key={project.href}
-                                type="button"
-                                className="workbench-part-result"
-                                onClick={() => addRelated(project)}
-                              >
-                                <span>
-                                  {project.title}
-                                  {project.author?.handle
-                                    ? ` by ${project.author.handle}`
-                                    : ""}
-                                </span>
-                                <span className="workbench-part-result-add">
-                                  add
-                                </span>
-                              </button>
-                            ))
-                          ) : (
-                            <p className="workbench-part-empty">
-                              {relatedQuery.trim()
-                                ? "no matches"
-                                : "type to search"}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="workbench-flow-actions">
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={goBack}
-                        >
-                          back
-                        </button>
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={() => setStep("review")}
-                        >
-                          skip
-                        </button>
-                        <button
-                          className="workbench-submit-button"
-                          type="submit"
-                        >
-                          continue
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
-
-                  {step === "code" ? (
-                    <form
-                      className="workbench-flow-form"
-                      onSubmit={onCodeContinue}
+                  <nav
+                    className="workbench-flow-stepper"
+                    aria-label="Submit progress"
+                  >
+                    <div
+                      className="workbench-flow-stepper-track"
+                      aria-hidden="true"
                     >
                       <div
-                        className={
-                          draggingFiles
-                            ? "workbench-dropzone is-dragging"
-                            : "workbench-dropzone"
-                        }
-                        onDragEnter={onDragEnter}
-                        onDragOver={onDragOver}
-                        onDragLeave={onDragLeave}
-                        onDrop={onDrop}
-                      >
-                        <p className="workbench-dropzone-copy">
-                          drop files or a folder
-                        </p>
-                        <div className="workbench-dropzone-actions">
-                          <label className="workbench-submit-button workbench-submit-button--ghost">
-                            choose files
-                            <input
-                              type="file"
-                              multiple
-                              className="workbench-sr-only"
-                              onChange={onFiles}
-                            />
-                          </label>
-                          <label className="workbench-submit-button workbench-submit-button--ghost">
-                            choose folder
-                            <input
-                              type="file"
-                              className="workbench-sr-only"
-                              // @ts-expect-error webkitdirectory is non-standard
-                              webkitdirectory=""
-                              multiple
-                              onChange={onFiles}
-                            />
-                          </label>
-                        </div>
-                        {files.length > 0 ? (
-                          <ul className="workbench-file-list">
-                            {files.map((file) => (
-                              <li key={file.path}>
-                                <span>{file.path}</span>
-                                <div className="workbench-file-actions">
-                                  <button
-                                    type="button"
-                                    className="workbench-file-download"
-                                    onClick={() =>
-                                      downloadTextFile(
-                                        fileBasename(file.path),
-                                        file.content,
-                                      )
-                                    }
-                                  >
-                                    download
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="workbench-file-remove"
-                                    onClick={() => removeFile(file.path)}
-                                    aria-label={`Remove ${file.path}`}
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </div>
-                      <textarea
-                        className="workbench-submit-textarea"
-                        rows={8}
-                        placeholder="or paste code…"
-                        value={paste}
-                        onChange={(event) => setPaste(event.target.value)}
-                        aria-label="Paste code"
+                        className="workbench-flow-stepper-fill"
+                        style={{
+                          width: `${
+                            (Math.max(previewStepIndex, 0) /
+                              Math.max(PREVIEW_STEPS.length - 1, 1)) *
+                            100
+                          }%`,
+                        }}
                       />
-                      {fileSummary ? (
-                        <p className="workbench-flow-copy">{fileSummary}</p>
-                      ) : null}
-                      <div className="workbench-flow-actions">
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={skipStep}
-                        >
-                          skip
-                        </button>
-                        <button
-                          className="workbench-submit-button"
-                          type="submit"
-                          disabled={analyzing}
-                        >
-                          {analyzing ? "analyzing…" : "continue"}
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
-
-                  {step === "done" ? (
-                    <div className="workbench-flow-form">
-                      <p className="workbench-flow-hint">your project was sent.</p>
-                      <div className="workbench-flow-actions">
-                        <button
-                          className="workbench-submit-button workbench-submit-button--ghost"
-                          type="button"
-                          onClick={goBack}
-                        >
-                          back
-                        </button>
-                        <button
-                          className="workbench-submit-button"
-                          type="button"
-                          onClick={closeFlow}
-                        >
-                          close
-                        </button>
-                      </div>
                     </div>
-                  ) : null}
-                </section>
+                    <ol className="workbench-flow-stepper-list">
+                      {PREVIEW_STEPS.map((item) => {
+                        const itemIndex = PREVIEW_STEPS.indexOf(item);
+                        const current =
+                          step === "done"
+                            ? item === "scripts"
+                            : item === step;
+                        const complete =
+                          step === "done" ||
+                          (previewStepIndex >= 0 &&
+                            itemIndex < previewStepIndex);
+                        return (
+                          <li
+                            key={item}
+                            className={
+                              current
+                                ? "is-current"
+                                : complete
+                                  ? "is-complete"
+                                  : undefined
+                            }
+                          >
+                            <button
+                              type="button"
+                              className="workbench-flow-stepper-btn"
+                              onClick={() => setStep(item)}
+                              disabled={analyzing}
+                            >
+                              {STEP_LABEL[item]}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </nav>
                 )}
 
-                {documentPane}
+                {step === "code" ? (
+                  <div className="workbench-flow-footer-actions">
+                    <button
+                      className="workbench-submit-button workbench-submit-button--ghost"
+                      type="button"
+                      onClick={() => {
+                        ensureDraft();
+                        setStep("header");
+                      }}
+                      disabled={analyzing}
+                    >
+                      write it myself
+                    </button>
+                    <button
+                      className="workbench-submit-button"
+                      type="button"
+                      onClick={goNext}
+                      disabled={
+                        analyzing ||
+                        aiReady === false ||
+                        (!files.length && !paste.trim())
+                      }
+                    >
+                      {nextLabel}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="workbench-submit-button"
+                    type="button"
+                    onClick={goNext}
+                    disabled={analyzing && step !== "done"}
+                  >
+                    {nextLabel}
+                  </button>
+                )}
               </div>
             </div>
           </div>,

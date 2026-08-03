@@ -20,6 +20,7 @@ export type AnalyzeProjectInput = {
 
 export type AnalyzeProjectResult = ReverseEngineerResult & {
   source?: "ai" | "heuristic" | "heuristic-fallback";
+  aiError?: "missing_api_key" | "request_failed" | string;
 };
 
 const MAX_CODE_CHARS = 40_000;
@@ -33,7 +34,8 @@ Tone: serious, plain, to the point. Lowercase. No hype, emoji, jokes, or filler.
 Return ONLY valid JSON (no markdown fences):
 {
   "projectName": "short factual title",
-  "summary": "1–2 sentences: what it is and what it does",
+  "summary": "1–2 sentences: what it is and what it does (used as subtitle)",
+  "description": "1 short paragraph (2–3 sentences max) on what the project is and how it works. plain sentences. no markdown headings.",
   "materials": [
     {
       "id": "slug-id",
@@ -66,9 +68,11 @@ Rules:
 - Domain-agnostic: firmware, apps, scripts, tools, mixed hardware/software — infer from the code, not assumptions.
 - Abstract: name the system, its purpose, inputs/outputs, and the minimum path to run or build it.
 - Prefer evidence in filenames, imports, pin defines, manifests, comments, and structure over guesses.
+- Fill every field you can support from the code. Empty arrays/null only when the code truly has no evidence.
 - Materials: physical hardware only when clearly implied. Otherwise []. Never list computers, IDEs, languages, frameworks, or packages as materials.
 - Schematic: null unless real wiring/pins/boards appear in the code. Never invent a board diagram for software-only work.
 - Steps: 5–10 practical steps a careful reader can follow. Software → install, configure, run, verify. Hardware → gather, wire/assemble, flash/power, test. No decorative steps.
+- Description: always write a brief useful body from the code (one short paragraph). Do not pad or repeat the summary word-for-word if you can add one concrete detail.
 - Social title/description may refine naming and summary; code wins for materials, schematic, and procedure.
 - buyUrl: "" if unknown; a search URL is acceptable when the part name is solid.
 - If code conflicts or is thin, stay conservative: shorter summary, fewer materials, honest steps.`;
@@ -178,6 +182,7 @@ export function normalizeAnalyzeResult(
   const materials = normalizeMaterials(row.materials);
   const steps = normalizeSteps(row.steps);
   const hardware = hasPhysicalHardware(materials);
+  const description = asString(row.description).toLowerCase();
   return {
     projectName,
     summary:
@@ -188,6 +193,7 @@ export function normalizeAnalyzeResult(
             .map((m) => m.name)
             .join(", ")}.`
         : `a ${projectName} software project.`),
+    description: description || undefined,
     materials: hardware ? materials : [],
     steps: steps.length
       ? steps
@@ -238,10 +244,12 @@ export async function analyzeProject(
       throw new Error("invalid analyze response");
     }
     return data;
-  } catch {
+  } catch (error) {
     return {
       ...reverseEngineerProject(input),
       source: "heuristic-fallback",
+      aiError:
+        error instanceof Error ? error.message.slice(0, 240) : "request_failed",
     };
   }
 }

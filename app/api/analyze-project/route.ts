@@ -103,6 +103,16 @@ function parseBody(body: AnalyzeProjectInput): AnalyzeProjectInput {
   };
 }
 
+export async function GET() {
+  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  return NextResponse.json({
+    aiReady: hasKey,
+    model: hasKey
+      ? process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL
+      : null,
+  });
+}
+
 export async function POST(request: NextRequest) {
   let body: AnalyzeProjectInput;
   try {
@@ -112,18 +122,34 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parseBody(body);
+  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+
+  if (!hasKey) {
+    return NextResponse.json({
+      ...reverseEngineerProject(input),
+      source: "heuristic",
+      aiError: "missing_api_key",
+    } satisfies AnalyzeProjectResult);
+  }
 
   try {
     const ai = await anthropicAnalyze(input);
     if (ai) return NextResponse.json(ai);
   } catch (error) {
     console.error("[analyze-project]", error);
+    return NextResponse.json({
+      ...reverseEngineerProject(input),
+      source: "heuristic-fallback",
+      aiError:
+        error instanceof Error
+          ? error.message.slice(0, 240)
+          : "request_failed",
+    } satisfies AnalyzeProjectResult);
   }
 
   return NextResponse.json({
     ...reverseEngineerProject(input),
-    source: process.env.ANTHROPIC_API_KEY
-      ? "heuristic-fallback"
-      : "heuristic",
+    source: "heuristic-fallback",
+    aiError: "request_failed",
   } satisfies AnalyzeProjectResult);
 }

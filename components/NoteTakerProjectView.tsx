@@ -64,17 +64,27 @@ export default function NoteTakerProjectView({
     return map;
   }, [draft.parts, materialImages]);
 
-  const toc = [
-    { label: "description", href: "#description" },
-    { label: "materials", href: "#materials" },
-    { label: "steps", href: "#steps" },
-    { label: "schematic", href: "#schematic" },
-    { label: "scripts", href: "#scripts" },
-    { label: "comments", href: "#comments" },
-  ];
-
+  const materials = draft.parts.filter((part) => part.name.trim());
+  const steps = draft.steps.filter(
+    (step) =>
+      step.title.trim() || step.details.some((detail) => detail.trim()),
+  );
+  const schematics = draft.schematics;
+  const scripts = draft.files.filter(
+    (file) => file.path.trim() || file.content.trim(),
+  );
   const descriptionText =
     stripHtml(draft.postHtml) || draft.lead || initialDraft.lead;
+  const hasDescription = Boolean(descriptionText);
+
+  const toc = [
+    hasDescription ? { label: "description", href: "#description" } : null,
+    materials.length ? { label: "materials", href: "#materials" } : null,
+    steps.length ? { label: "steps", href: "#steps" } : null,
+    schematics.length ? { label: "schematic", href: "#schematic" } : null,
+    scripts.length ? { label: "scripts", href: "#scripts" } : null,
+    { label: "comments", href: "#comments" },
+  ].filter(Boolean) as { label: string; href: string }[];
 
   return (
     <WorkbenchProjectShell
@@ -85,133 +95,149 @@ export default function NoteTakerProjectView({
       postId={draft.postId}
       editDraft={draft}
     >
-      <nav className="workbench-project-toc" aria-label="Table of contents">
-        {toc.map((item) => (
-          <a key={item.href} href={item.href}>
-            {item.label}
-          </a>
-        ))}
-      </nav>
+      {toc.length > 0 ? (
+        <nav className="workbench-project-toc" aria-label="Table of contents">
+          {toc.map((item) => (
+            <a key={item.href} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      ) : null}
 
-      <section id="description" className="workbench-project-section">
-        <h2 className="workbench-project-heading">description</h2>
-        {draft.postHtml.trim() ? (
-          <div
-            className="workbench-project-copy"
-            dangerouslySetInnerHTML={{ __html: draft.postHtml }}
-          />
-        ) : (
-          <p className="workbench-project-copy">{descriptionText}</p>
-        )}
-      </section>
+      {hasDescription ? (
+        <section id="description" className="workbench-project-section">
+          <h2 className="workbench-project-heading">description</h2>
+          {draft.postHtml.trim() ? (
+            <div
+              className="workbench-project-copy"
+              dangerouslySetInnerHTML={{ __html: draft.postHtml }}
+            />
+          ) : (
+            <p className="workbench-project-copy">{descriptionText}</p>
+          )}
+        </section>
+      ) : null}
 
-      <section id="materials" className="workbench-project-section">
-        <h2 className="workbench-project-heading">materials</h2>
-        <div className="workbench-project-materials">
-          {draft.parts.map((item) => {
-            const src = imageByName.get(item.name);
-            const buy = item.buyUrl;
+      {materials.length > 0 ? (
+        <section id="materials" className="workbench-project-section">
+          <h2 className="workbench-project-heading">materials</h2>
+          <div className="workbench-project-materials">
+            {materials.map((item) => {
+              const src = imageByName.get(item.name);
+              const buy = item.buyUrl;
+              return (
+                <div key={item.id} className="workbench-project-material">
+                  <div className="workbench-project-material-copy">
+                    <p className="workbench-project-material-name">
+                      {item.name}
+                    </p>
+                    {item.note ? (
+                      <p className="workbench-project-material-note">
+                        {item.note}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="workbench-project-material-pic">
+                    {src ? (
+                      <Image
+                        src={src}
+                        alt={item.name}
+                        width={400}
+                        height={400}
+                        className="workbench-project-material-img"
+                      />
+                    ) : null}
+                  </div>
+                  {buy ? (
+                    <a
+                      className="workbench-project-material-buy"
+                      href={buy}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      buy
+                    </a>
+                  ) : (
+                    <span className="workbench-project-material-buy">buy</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {steps.length > 0 ? (
+        <section id="steps" className="workbench-project-section">
+          <h2 className="workbench-project-heading">steps</h2>
+          <ol className="workbench-project-steps">
+            {steps.map((step, i) => (
+              <li key={step.id} className="workbench-project-step">
+                <span className="workbench-project-step-num">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <h3 className="workbench-project-step-title">{step.title}</h3>
+                  <ul className="workbench-project-step-details">
+                    {step.details
+                      .filter((detail) => detail.trim())
+                      .map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      {schematics.length > 0 ? (
+        <section id="schematic" className="workbench-project-section">
+          <h2 className="workbench-project-heading">schematic</h2>
+          {schematics[0]?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              className="workbench-schematic-upload"
+              src={schematics[0].imageUrl}
+              alt="schematic"
+            />
+          ) : (
+            <NoteTakerSchematic />
+          )}
+        </section>
+      ) : null}
+
+      {scripts.length > 0 ? (
+        <section id="scripts" className="workbench-project-section">
+          <h2 className="workbench-project-heading">scripts</h2>
+          {scripts.map((script, index) => {
+            const name = script.path.split("/").pop() || script.path;
+            const ext = name.includes(".") ? `.${name.split(".").pop()}` : "";
             return (
-              <div key={item.id} className="workbench-project-material">
-                <div className="workbench-project-material-copy">
-                  <p className="workbench-project-material-name">{item.name}</p>
-                  {item.note ? (
-                    <p className="workbench-project-material-note">{item.note}</p>
-                  ) : null}
-                </div>
-                <div className="workbench-project-material-pic">
-                  {src ? (
-                    <Image
-                      src={src}
-                      alt={item.name}
-                      width={400}
-                      height={400}
-                      className="workbench-project-material-img"
-                    />
-                  ) : null}
-                </div>
-                {buy ? (
+              <div key={script.path} className="workbench-project-script">
+                <div className="workbench-project-script-head">
+                  <h3 className="workbench-project-subheading">
+                    <span className="workbench-project-step-num">
+                      {String(index + 1).padStart(2, "0")} ·{" "}
+                    </span>
+                    {name}
+                  </h3>
                   <a
-                    className="workbench-project-material-buy"
-                    href={buy}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    className="workbench-project-link"
+                    href={`/projects/note-taker/${name}`}
+                    download
                   >
-                    buy
+                    download{ext}
                   </a>
-                ) : (
-                  <span className="workbench-project-material-buy">buy</span>
-                )}
+                </div>
+                <pre className="workbench-project-pre">{script.content}</pre>
               </div>
             );
           })}
-        </div>
-      </section>
-
-      <section id="steps" className="workbench-project-section">
-        <h2 className="workbench-project-heading">steps</h2>
-        <ol className="workbench-project-steps">
-          {draft.steps.map((step, i) => (
-            <li key={step.id} className="workbench-project-step">
-              <span className="workbench-project-step-num">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div>
-                <h3 className="workbench-project-step-title">{step.title}</h3>
-                <ul className="workbench-project-step-details">
-                  {step.details
-                    .filter((detail) => detail.trim())
-                    .map((detail) => (
-                      <li key={detail}>{detail}</li>
-                    ))}
-                </ul>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section id="schematic" className="workbench-project-section">
-        <h2 className="workbench-project-heading">schematic</h2>
-        {draft.schematics[0]?.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            className="workbench-schematic-upload"
-            src={draft.schematics[0].imageUrl}
-            alt="schematic"
-          />
-        ) : (
-          <NoteTakerSchematic />
-        )}
-      </section>
-
-      <section id="scripts" className="workbench-project-section">
-        <h2 className="workbench-project-heading">scripts</h2>
-        {draft.files.map((script, index) => {
-          const name = script.path.split("/").pop() || script.path;
-          const ext = name.includes(".") ? `.${name.split(".").pop()}` : "";
-          return (
-            <div key={script.path} className="workbench-project-script">
-              <div className="workbench-project-script-head">
-                <h3 className="workbench-project-subheading">
-                  <span className="workbench-project-step-num">
-                    {String(index + 1).padStart(2, "0")} ·{" "}
-                  </span>
-                  {name}
-                </h3>
-                <a
-                  className="workbench-project-link"
-                  href={`/projects/note-taker/${name}`}
-                  download
-                >
-                  download{ext}
-                </a>
-              </div>
-              <pre className="workbench-project-pre">{script.content}</pre>
-            </div>
-          );
-        })}
-      </section>
+        </section>
+      ) : null}
     </WorkbenchProjectShell>
   );
 }

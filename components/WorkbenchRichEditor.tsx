@@ -321,9 +321,18 @@ export function fileBasename(path: string) {
 export function buildProjectPostHtml(input: {
   social?: string;
   summary?: string;
+  description?: string;
 }) {
-  const summary = input.summary?.trim() || "";
-  return summary ? `<p>${escapeHtml(summary)}</p>` : "<p></p>";
+  const body = (input.description || input.summary || "").trim();
+  if (!body) return "<p></p>";
+  const paragraphs = body
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  if (!paragraphs.length) return `<p>${escapeHtml(body)}</p>`;
+  return paragraphs
+    .map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br>")}</p>`)
+    .join("");
 }
 
 export function withSocialInPostHtml(html: string, _social: string) {
