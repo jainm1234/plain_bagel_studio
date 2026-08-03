@@ -34,6 +34,10 @@ import {
   savePostEdit,
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
+import {
+  hostDataUrl,
+  hostDataUrlsInHtml,
+} from "@/lib/workbenchMediaUpload";
 
 function downloadTextFile(
   filename: string,
@@ -822,31 +826,67 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     };
   }
 
+  async function prepareDraftForApi(
+    draft: WorkbenchPostDraft,
+  ): Promise<WorkbenchPostDraft> {
+    const coverImage = await hostDataUrl(draft.coverImage, "covers");
+    const postHtml = await hostDataUrlsInHtml(draft.postHtml);
+    const steps = await Promise.all(
+      draft.steps.map(async (step) => ({
+        ...step,
+        imageUrl: await hostDataUrl(step.imageUrl, "steps"),
+        videoUrl: await hostDataUrl(step.videoUrl, "steps"),
+      })),
+    );
+    const schematics = await Promise.all(
+      draft.schematics.map(async (item) => ({
+        ...item,
+        imageUrl: await hostDataUrl(item.imageUrl, "schematics"),
+      })),
+    );
+
+    return {
+      ...draft,
+      coverImage,
+      postHtml,
+      steps,
+      schematics,
+    };
+  }
+
   async function persistDraftToApi(
     draft: WorkbenchPostDraft,
     mode: "create" | "update",
   ) {
+    const prepared = await prepareDraftForApi(draft);
     const payload = {
-      postId: draft.postId !== "new" ? draft.postId : undefined,
-      projectName: draft.projectName,
-      lead: draft.lead,
-      postHtml: draft.postHtml,
-      socialLink: draft.socialLink,
-      coverImage: draft.coverImage ?? null,
-      parts: draft.parts,
-      steps: draft.steps,
-      schematics: draft.schematics,
-      files: draft.files,
+      postId: prepared.postId !== "new" ? prepared.postId : undefined,
+      projectName: prepared.projectName,
+      lead: prepared.lead,
+      postHtml: prepared.postHtml,
+      socialLink: prepared.socialLink,
+      coverImage: prepared.coverImage ?? null,
+      parts: prepared.parts,
+      steps: prepared.steps,
+      schematics: prepared.schematics,
+      files: prepared.files,
     };
+
+    const body = JSON.stringify(payload);
+    if (body.length > 4_000_000) {
+      throw new Error(
+        "Post is too large to save. Remove large images/videos from the description or steps and try again.",
+      );
+    }
 
     const url =
       mode === "update"
-        ? `/api/posts/${encodeURIComponent(draft.postId)}`
+        ? `/api/posts/${encodeURIComponent(prepared.postId)}`
         : "/api/posts";
     const response = await fetch(url, {
       method: mode === "update" ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body,
     });
 
     const data = (await response.json().catch(() => ({}))) as {
@@ -856,6 +896,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     };
 
     if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error(
+          "Post is too large to save. Remove large images/videos and try again.",
+        );
+      }
       throw new Error(data.error || `Could not ${mode} post (${response.status})`);
     }
 

@@ -48,3 +48,21 @@ create policy "likes are publicly readable"
   for select
   to anon, authenticated
   using (true);
+
+-- Mailing list signups
+create table if not exists public.mailing_list_emails (
+  email text primary key,
+  source text not null default 'mailing-list',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mailing_list_emails_created_at_idx
+  on public.mailing_list_emails (created_at desc);
+
+alter table public.mailing_list_emails enable row level security;
+
+-- Media uploads (covers, step images/videos) go to Storage bucket "post-media".
+-- Create it once in Dashboard → Storage → New bucket:
+--   name: post-media
+--   public: true
+-- Or the /api/upload/sign route will try to create it with the service role key.

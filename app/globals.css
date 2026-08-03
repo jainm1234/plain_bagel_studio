@@ -125,6 +125,23 @@ a:hover {
   opacity: 0.75;
 }
 
+.mailing-submit:disabled,
+.mailing-input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.mailing-error {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  color: #b00020;
+}
+
+.mailing-success {
+  margin: 0.85rem 0 0;
+  font-size: 0.9rem;
+}
+
 .logo {
   position: fixed;
   top: 2rem;
