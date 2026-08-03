@@ -48,6 +48,39 @@ const STORAGE_KEY = "workbench.postEdits.v1";
 
 type EditMap = Record<string, WorkbenchPostDraft>;
 
+function isDataUrl(value: string | null | undefined) {
+  return Boolean(value && value.startsWith("data:"));
+}
+
+/** Drop base64 media so localStorage does not blow past browser quota. */
+export function slimDraftForLocalCache(draft: WorkbenchPostDraft): WorkbenchPostDraft {
+  return {
+    ...draft,
+    coverImage: isDataUrl(draft.coverImage) ? null : draft.coverImage,
+    postHtml: draft.postHtml.replace(
+      /src=(["'])data:[^"']+\1/gi,
+      'src=$1$1',
+    ),
+    steps: draft.steps.map((step) => ({
+      ...step,
+      imageUrl: isDataUrl(step.imageUrl) ? null : step.imageUrl,
+      videoUrl: isDataUrl(step.videoUrl) ? null : step.videoUrl,
+    })),
+    schematics: draft.schematics.map((item) => ({
+      ...item,
+      imageUrl: isDataUrl(item.imageUrl) ? null : item.imageUrl,
+    })),
+    files: draft.files.map((file) => ({
+      ...file,
+      // Cap cached script bodies; full content lives in Supabase.
+      content:
+        file.content.length > 50_000
+          ? `${file.content.slice(0, 50_000)}\n/* …truncated for local cache */`
+          : file.content,
+    })),
+  };
+}
+
 function readAll(): EditMap {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -60,7 +93,25 @@ function readAll(): EditMap {
 }
 
 function writeAll(map: EditMap) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  const json = JSON.stringify(map);
+  try {
+    localStorage.setItem(STORAGE_KEY, json);
+  } catch (error) {
+    const quota =
+      error instanceof DOMException &&
+      (error.name === "QuotaExceededError" ||
+        error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+        /quota/i.test(error.message));
+    if (!quota) throw error;
+
+    // Clear bloated cache and retry once with current map only.
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_KEY, json);
+    } catch {
+      // Give up on local cache; Supabase is the source of truth.
+    }
+  }
 }
 
 export function getPostEdit(postId: string): WorkbenchPostDraft | null {
@@ -70,7 +121,7 @@ export function getPostEdit(postId: string): WorkbenchPostDraft | null {
 
 export function savePostEdit(draft: WorkbenchPostDraft) {
   const map = readAll();
-  map[draft.postId] = draft;
+  map[draft.postId] = slimDraftForLocalCache(draft);
   writeAll(map);
 }
 
