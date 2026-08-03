@@ -9,6 +9,7 @@ import {
   mergePostDraft,
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
+import { snapWorkbenchImageWidth } from "@/lib/workbenchImageSizes";
 
 type Props = {
   author: { id: string; handle: string };
@@ -123,6 +124,7 @@ export default function WorkbenchProjectView({
       lead={draft.lead}
       socialLink={draft.socialLink}
       coverImage={draft.coverImage}
+      related={draft.related}
       postId={draft.postId}
       editDraft={draft}
     >
@@ -199,12 +201,24 @@ export default function WorkbenchProjectView({
                 <div>
                   <h3 className="workbench-project-step-title">{step.title}</h3>
                   {step.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      className="workbench-step-image"
-                      src={step.imageUrl}
-                      alt=""
-                    />
+                    <figure
+                      className="workbench-figure workbench-step-figure"
+                      style={{
+                        width: `${snapWorkbenchImageWidth(step.imageWidth ?? 100)}%`,
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="workbench-step-image"
+                        src={step.imageUrl}
+                        alt=""
+                      />
+                      {step.imageCaption?.trim() ? (
+                        <figcaption className="workbench-figure-caption">
+                          {step.imageCaption.trim()}
+                        </figcaption>
+                      ) : null}
+                    </figure>
                   ) : null}
                   {step.videoUrl ? (
                     <video

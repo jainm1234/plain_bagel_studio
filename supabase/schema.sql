@@ -13,9 +13,14 @@ create table if not exists public.posts (
   steps jsonb not null default '[]'::jsonb,
   schematics jsonb not null default '[]'::jsonb,
   files jsonb not null default '[]'::jsonb,
+  related jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- If posts already exists without related:
+alter table public.posts
+  add column if not exists related jsonb not null default '[]'::jsonb;
 
 create index if not exists posts_updated_at_idx on public.posts (updated_at desc);
 create index if not exists posts_author_id_idx on public.posts (author_id);

@@ -112,10 +112,14 @@ export function projectMatchesWorkbenchQuery(
   return hits >= Math.min(2, tokens.length);
 }
 
-export function searchWorkbenchProjects(query: string, excludeHrefs: string[] = []) {
+export function searchWorkbenchProjects(
+  query: string,
+  excludeHrefs: string[] = [],
+  catalog: WorkbenchProject[] = WORKBENCH_PROJECTS,
+) {
   const excluded = new Set(excludeHrefs);
 
-  const available = WORKBENCH_PROJECTS.filter(
+  const available = catalog.filter(
     (project) => !excluded.has(project.href) && !project.comingSoon,
   );
 

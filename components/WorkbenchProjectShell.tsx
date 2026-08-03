@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import {
   displayAuthorHandle,
   type WorkbenchPostDraft,
+  type WorkbenchPostRelated,
 } from "@/lib/workbenchPostEdits";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import { socialPlatformLabel } from "@/lib/socialHints";
@@ -24,6 +25,7 @@ type Props = {
   lead?: string;
   socialLink?: string;
   coverImage?: string | null;
+  related?: WorkbenchPostRelated[];
   postId?: string;
   editDraft?: WorkbenchPostDraft;
 };
@@ -35,6 +37,7 @@ export default function WorkbenchProjectShell({
   lead,
   socialLink,
   coverImage,
+  related = [],
   postId,
   editDraft,
 }: Props) {
@@ -103,6 +106,19 @@ export default function WorkbenchProjectShell({
             ) : null}
           </h1>
           {lead ? <p className="workbench-project-lead">{lead}</p> : null}
+          {related.length > 0 ? (
+            <p className="workbench-project-related">
+              <span className="workbench-project-by">references </span>
+              {related.map((item, index) => (
+                <span key={item.href}>
+                  {index > 0 ? ", " : null}
+                  <Link className="workbench-project-social" href={item.href}>
+                    {item.title}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          ) : null}
         </header>
         {children}
         {postId ? <WorkbenchComments postId={postId} /> : null}

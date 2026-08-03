@@ -7,6 +7,10 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { type FormEvent } from "react";
+import {
+  snapWorkbenchImageWidth,
+  WORKBENCH_IMAGE_SIZES,
+} from "@/lib/workbenchImageSizes";
 
 export type SetWorkbenchImageOptions = {
   src: string;
@@ -24,32 +28,13 @@ declare module "@tiptap/core" {
   }
 }
 
-const IMAGE_SIZES = [
-  { id: "s", label: "S", width: 33 },
-  { id: "m", label: "M", width: 66 },
-  { id: "l", label: "L", width: 100 },
-] as const;
-
-function snapWidth(value: number) {
-  let best = IMAGE_SIZES[IMAGE_SIZES.length - 1].width;
-  let bestDist = Infinity;
-  for (const size of IMAGE_SIZES) {
-    const dist = Math.abs(size.width - value);
-    if (dist < bestDist) {
-      best = size.width;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
-
 function WorkbenchImageView({
   node,
   updateAttributes,
   selected,
   editor,
 }: NodeViewProps) {
-  const width = snapWidth(Number(node.attrs.width) || 100);
+  const width = snapWorkbenchImageWidth(Number(node.attrs.width) || 100);
   const caption = (node.attrs.caption as string) || "";
 
   function onCaptionInput(event: FormEvent<HTMLInputElement>) {
@@ -81,7 +66,7 @@ function WorkbenchImageView({
             role="group"
             aria-label="Image size"
           >
-            {IMAGE_SIZES.map((size) => (
+            {WORKBENCH_IMAGE_SIZES.map((size) => (
               <button
                 key={size.id}
                 type="button"
@@ -117,15 +102,15 @@ function WorkbenchImageView({
 function parseWidth(value: string | null) {
   if (!value) return null;
   const percent = value.match(/([\d.]+)\s*%/);
-  if (percent) return snapWidth(Number(percent[1]));
+  if (percent) return snapWorkbenchImageWidth(Number(percent[1]));
   const px = value.match(/([\d.]+)\s*px/i);
   if (px) {
     const n = Number(px[1]);
     if (!Number.isFinite(n) || n <= 0) return null;
-    return snapWidth(Math.min(100, (n / 640) * 100));
+    return snapWorkbenchImageWidth(Math.min(100, (n / 640) * 100));
   }
   const bare = Number(value);
-  return Number.isFinite(bare) ? snapWidth(bare) : null;
+  return Number.isFinite(bare) ? snapWorkbenchImageWidth(bare) : null;
 }
 
 /** Block image with S/M/L width and optional caption. */
@@ -163,7 +148,7 @@ export const WorkbenchImage = Node.create({
           return 100;
         },
         renderHTML: (attributes) => {
-          const width = snapWidth(Number(attributes.width) || 100);
+          const width = snapWorkbenchImageWidth(Number(attributes.width) || 100);
           return {
             "data-width": String(width),
             style: `width: ${width}%`,
@@ -249,7 +234,7 @@ export const WorkbenchImage = Node.create({
             attrs: {
               src: options.src,
               alt: options.alt || null,
-              width: snapWidth(options.width ?? 100),
+              width: snapWorkbenchImageWidth(options.width ?? 100),
               caption: options.caption || "",
             },
           }),
@@ -259,7 +244,7 @@ export const WorkbenchImage = Node.create({
           commands.updateAttributes(this.name, {
             ...options,
             ...(options.width != null
-              ? { width: snapWidth(options.width) }
+              ? { width: snapWorkbenchImageWidth(options.width) }
               : {}),
           }),
     };

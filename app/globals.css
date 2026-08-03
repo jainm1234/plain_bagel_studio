@@ -1354,7 +1354,7 @@ a:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 1.75rem 1.5rem 1rem;
   background: transparent;
   pointer-events: none;
 }
@@ -3411,7 +3411,7 @@ ol.workbench-preview-edit-list > li {
   width: 100%;
   max-width: 100%;
   height: auto;
-  margin: 0.55rem 0 0.75rem;
+  margin: 0;
   border: 1px solid #e8e8e8;
   object-fit: contain;
 }
@@ -3420,10 +3420,18 @@ ol.workbench-preview-edit-list > li {
   margin: 0.55rem 0 0.75rem;
 }
 
+.workbench-step-figure {
+  margin: 0.55rem 0 0.35rem;
+}
+
 .workbench-step-image-preview {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.workbench-step-image-preview .workbench-figure-controls {
+  margin-top: 0;
 }
 
 .workbench-rte-content p.is-editor-empty:first-child::before,
@@ -3746,10 +3754,9 @@ ol.workbench-preview-edit-list > li {
 
 .workbench-project-cover {
   display: block;
-  width: auto;
-  max-width: 14rem;
+  width: 66%;
+  max-width: 100%;
   height: auto;
-  max-height: 14rem;
   margin: 0 0 1.25rem;
   object-fit: contain;
   border: 1px solid #e8e8e8;
@@ -3757,7 +3764,7 @@ ol.workbench-preview-edit-list > li {
 }
 
 .workbench-project-cover--empty {
-  width: 14rem;
+  width: 66%;
   min-height: 8rem;
   border-style: dashed;
   border-color: #ccc;
@@ -3809,6 +3816,74 @@ ol.workbench-preview-edit-list > li {
   letter-spacing: 0.02em;
   color: #777;
   max-width: 28rem;
+}
+
+.workbench-project-related {
+  margin: 0.35rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: #777;
+  max-width: 28rem;
+}
+
+.workbench-related-picked,
+.workbench-related-suggestions {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.workbench-related-picked > li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.workbench-related-by,
+.workbench-related-suggestion-meta {
+  color: #777;
+}
+
+.workbench-related-suggestions {
+  border: 1px solid #e8e8e8;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.workbench-related-suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbench-related-suggestions li:last-child .workbench-related-suggestion {
+  border-bottom: 0;
+}
+
+.workbench-related-suggestion:hover {
+  background: #f5f5f5;
+}
+
+.workbench-related-suggestion-title {
+  color: #000;
 }
 
 .workbench-rte-content--project {
@@ -4723,7 +4798,7 @@ ol.workbench-preview-edit-list > li {
 
 @media (max-width: 640px) {
   .workbench-topbar {
-    padding: 0.85rem 1rem;
+    padding: 1.5rem 1rem 0.85rem;
   }
 
   .workbench {

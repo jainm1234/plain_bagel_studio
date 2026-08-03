@@ -11,6 +11,8 @@ export type WorkbenchPostStep = {
   title: string;
   details: string[];
   imageUrl?: string | null;
+  imageWidth?: number | null;
+  imageCaption?: string | null;
   videoUrl?: string | null;
 };
 
@@ -31,6 +33,12 @@ export type WorkbenchPostFile = {
   content: string;
 };
 
+export type WorkbenchPostRelated = {
+  title: string;
+  href: string;
+  authorHandle?: string;
+};
+
 export type WorkbenchPostDraft = {
   postId: string;
   projectName: string;
@@ -42,6 +50,7 @@ export type WorkbenchPostDraft = {
   steps: WorkbenchPostStep[];
   schematics: WorkbenchPostSchematic[];
   files: WorkbenchPostFile[];
+  related?: WorkbenchPostRelated[];
 };
 
 const STORAGE_KEY = "workbench.postEdits.v1";
@@ -145,6 +154,7 @@ export function mergePostDraft(
     steps: overlay.steps?.length ? overlay.steps : base.steps,
     schematics: overlay.schematics?.length ? overlay.schematics : base.schematics,
     files: overlay.files?.length ? overlay.files : base.files,
+    related: overlay.related?.length ? overlay.related : base.related,
   };
 }
 

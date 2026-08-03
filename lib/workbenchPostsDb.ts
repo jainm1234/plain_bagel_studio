@@ -16,6 +16,7 @@ export type WorkbenchPostRecord = {
   steps: WorkbenchPostDraft["steps"];
   schematics: WorkbenchPostDraft["schematics"];
   files: WorkbenchPostDraft["files"];
+  related: NonNullable<WorkbenchPostDraft["related"]>;
   created_at: string;
   updated_at: string;
 };
@@ -31,6 +32,7 @@ export type WorkbenchPostInput = {
   steps: WorkbenchPostDraft["steps"];
   schematics: WorkbenchPostDraft["schematics"];
   files: WorkbenchPostDraft["files"];
+  related?: WorkbenchPostDraft["related"];
   author: {
     id: string;
     handle: string;
@@ -64,6 +66,7 @@ export function draftFromRecord(row: WorkbenchPostRecord): WorkbenchPostDraft {
     steps: Array.isArray(row.steps) ? row.steps : [],
     schematics: Array.isArray(row.schematics) ? row.schematics : [],
     files: Array.isArray(row.files) ? row.files : [],
+    related: Array.isArray(row.related) ? row.related : [],
   };
 }
 
@@ -100,6 +103,7 @@ function rowFromInput(
     steps: input.steps || [],
     schematics: input.schematics || [],
     files: input.files || [],
+    related: input.related || [],
   };
 }
 

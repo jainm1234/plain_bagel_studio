@@ -17,8 +17,12 @@ import {
 import { analyzeProject } from "@/lib/analyzeProject";
 import { fetchSocialHints, socialPlatformLabel } from "@/lib/socialHints";
 import {
+  WORKBENCH_PROJECTS,
+  mergeFeedProjects,
   searchWorkbenchProjects,
 } from "@/lib/workbenchProjects";
+import type { WorkbenchProject } from "@/components/WorkbenchFeed";
+import { postIdFromHref } from "@/lib/workbenchReactions";
 import WorkbenchSchematic from "@/components/WorkbenchSchematic";
 import WorkbenchRichEditor, {
   buildProjectPostHtml,
@@ -33,6 +37,10 @@ import {
   savePostEdit,
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
+import {
+  snapWorkbenchImageWidth,
+  WORKBENCH_IMAGE_SIZES,
+} from "@/lib/workbenchImageSizes";
 import {
   hostDataUrl,
   hostDataUrlsInHtml,
@@ -90,6 +98,8 @@ type StepItem = {
   title: string;
   details: string[];
   imageUrl?: string | null;
+  imageWidth?: number | null;
+  imageCaption?: string | null;
   videoUrl?: string | null;
 };
 
@@ -232,7 +242,7 @@ const STEP_TITLE: Record<WizardStep, string> = {
 };
 
 const STEP_BLURB: Record<WizardStep, string> = {
-  code: "Upload files or paste code. Optional social link helps the draft.",
+  code: "Upload files or paste code. Optional social link or a work bench project this references.",
   header: "Title, subtitle, social link, and cover.",
   description: "Write what the project is. Changes show in the preview.",
   materials: "Optional — skip if you don't need a parts list.",
@@ -452,6 +462,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const [socialLink, setSocialLink] = useState("");
   const [related, setRelated] = useState<RelatedProject[]>([]);
   const [relatedQuery, setRelatedQuery] = useState("");
+  const [projectCatalog, setProjectCatalog] =
+    useState<WorkbenchProject[]>(WORKBENCH_PROJECTS);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [paste, setPaste] = useState("");
   const [result, setResult] = useState<ReverseEngineerResult | null>(null);
@@ -483,6 +495,32 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/posts");
+        const data = (await response.json()) as {
+          posts?: WorkbenchProject[];
+        };
+        if (cancelled) return;
+        setProjectCatalog(
+          mergeFeedProjects(
+            WORKBENCH_PROJECTS,
+            data.posts || [],
+            postIdFromHref,
+          ),
+        );
+      } catch {
+        if (!cancelled) setProjectCatalog(WORKBENCH_PROJECTS);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -709,8 +747,9 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       searchWorkbenchProjects(
         relatedQuery,
         related.map((project) => project.href),
+        projectCatalog,
       ),
-    [relatedQuery, related],
+    [relatedQuery, related, projectCatalog],
   );
 
   const stepIndex = STEP_ORDER.indexOf(step);
@@ -753,7 +792,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     const snapshot: DocSnapshot = {
       projectName: draft.projectName,
       socialLink: draft.socialLink,
-      related: [],
+      related: (draft.related || []).map((item) => ({
+        title: item.title,
+        href: item.href,
+        authorHandle: item.authorHandle,
+      })),
       lead: draft.lead,
       postHtml: draft.postHtml,
       coverImage: draft.coverImage ?? null,
@@ -768,6 +811,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         title: stepItem.title,
         details: stepItem.details.length ? stepItem.details : [""],
         imageUrl: stepItem.imageUrl ?? null,
+        imageWidth: stepItem.imageWidth ?? 100,
+        imageCaption: stepItem.imageCaption ?? "",
         videoUrl: stepItem.videoUrl ?? null,
       })),
       schematics: draft.schematics.map((item) => ({
@@ -789,7 +834,13 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }));
     setFiles(loadedFiles);
     setPaste("");
-    setRelated([]);
+    setRelated(
+      (draft.related || []).map((item) => ({
+        title: item.title,
+        href: item.href,
+        authorHandle: item.authorHandle,
+      })),
+    );
     setRelatedQuery("");
     setResult({
       projectName: draft.projectName || "untitled project",
@@ -828,6 +879,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         title: item.title,
         details: item.details,
         imageUrl: item.imageUrl ?? null,
+        imageWidth: item.imageWidth ?? 100,
+        imageCaption: item.imageCaption ?? "",
         videoUrl: item.videoUrl ?? null,
       })),
       schematics: schematics.map((item) => ({
@@ -844,6 +897,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       files: scriptEntries(files, paste).map((script) => ({
         path: script.name,
         content: script.content,
+      })),
+      related: related.map((item) => ({
+        title: item.title,
+        href: item.href,
+        authorHandle: item.authorHandle,
       })),
     };
   }
@@ -1409,7 +1467,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     reader.onload = () => {
       const dataUrl = typeof reader.result === "string" ? reader.result : null;
       if (!dataUrl) return;
-      updateStep(id, { imageUrl: dataUrl });
+      updateStep(id, {
+        imageUrl: dataUrl,
+        imageWidth: 100,
+        imageCaption: "",
+      });
     };
     reader.readAsDataURL(file);
   }
@@ -1652,6 +1714,23 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 project subtitle
               </p>
             )}
+            {related.length > 0 ? (
+              <p className="workbench-project-related">
+                <span className="workbench-project-by">references </span>
+                {related.map((item, index) => (
+                  <span key={item.href}>
+                    {index > 0 ? ", " : null}
+                    <a
+                      className="workbench-project-social"
+                      href={item.href}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {item.title}
+                    </a>
+                  </span>
+                ))}
+              </p>
+            ) : null}
           </header>
 
           <nav className="workbench-project-toc" aria-label="Table of contents">
@@ -1807,13 +1886,25 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                           {item.title.trim() || "step"}
                         </h3>
                         {item.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            className="workbench-step-image"
-                            src={item.imageUrl}
-                            alt=""
+                          <figure
+                            className="workbench-figure workbench-step-figure"
+                            style={{
+                              width: `${snapWorkbenchImageWidth(item.imageWidth ?? 100)}%`,
+                            }}
                             onClick={(event) => event.stopPropagation()}
-                          />
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              className="workbench-step-image"
+                              src={item.imageUrl}
+                              alt=""
+                            />
+                            {item.imageCaption?.trim() ? (
+                              <figcaption className="workbench-figure-caption">
+                                {item.imageCaption.trim()}
+                              </figcaption>
+                            ) : null}
+                          </figure>
                         ) : null}
                         {item.videoUrl ? (
                           <video
@@ -2060,6 +2151,76 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 aria-label="Social media link"
               />
             </label>
+            <div className="workbench-flow-field">
+              <span className="workbench-flow-field-label">
+                References a work bench project (optional)
+              </span>
+              <p className="workbench-flow-hint">
+                Link a project already on the site that this builds on.
+              </p>
+              {related.length > 0 ? (
+                <ul className="workbench-related-picked">
+                  {related.map((item) => (
+                    <li key={item.href}>
+                      <span>
+                        {item.title}
+                        {item.authorHandle ? (
+                          <span className="workbench-related-by">
+                            {" "}
+                            by {item.authorHandle}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        type="button"
+                        className="workbench-doc-remove"
+                        onClick={() => removeRelated(item.href)}
+                        aria-label={`Remove ${item.title}`}
+                      >
+                        remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <input
+                className="workbench-submit-input"
+                type="search"
+                placeholder="search work bench…"
+                value={relatedQuery}
+                onChange={(event) => setRelatedQuery(event.target.value)}
+                aria-label="Search work bench projects to reference"
+                autoComplete="off"
+              />
+              {relatedSuggestions.length > 0 ? (
+                <ul
+                  className="workbench-related-suggestions"
+                  role="listbox"
+                  aria-label="Work bench projects"
+                >
+                  {relatedSuggestions.map((project) => (
+                    <li key={project.href}>
+                      <button
+                        type="button"
+                        className="workbench-related-suggestion"
+                        onClick={() => addRelated(project)}
+                      >
+                        <span className="workbench-related-suggestion-title">
+                          {project.title}
+                        </span>
+                        {project.author?.handle ? (
+                          <span className="workbench-related-suggestion-meta">
+                            by {project.author.handle}
+                          </span>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : relatedQuery.trim() ? (
+                <p className="workbench-flow-hint">no matching projects</p>
+              ) : null}
+            </div>
             {fileSummary ? (
               <p className="workbench-flow-copy">{fileSummary}</p>
             ) : null}
@@ -2126,8 +2287,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
             <div className="workbench-flow-field">
               <span className="workbench-flow-field-label">Cover</span>
               <p className="workbench-flow-hint">
-                Uses a preview image from your social link when one is set. Or
-                upload a photo instead.
+                Uses a preview from your social link when one is set. Or upload
+                a photo instead.
               </p>
               {coverImage ? (
                 <div className="workbench-cover-preview">
@@ -2139,7 +2300,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                     onClick={() => setCoverImage(null)}
                     disabled={analyzing}
                   >
-                    use social preview instead
+                    remove
                   </button>
                 </div>
               ) : null}
@@ -2258,12 +2419,66 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 />
                 {item.imageUrl ? (
                   <div className="workbench-step-image-preview">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.imageUrl} alt="" />
+                    <figure
+                      className="workbench-figure workbench-step-figure"
+                      style={{
+                        width: `${snapWorkbenchImageWidth(item.imageWidth ?? 100)}%`,
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.imageUrl} alt="" />
+                    </figure>
+                    <div className="workbench-figure-controls">
+                      <div
+                        className="workbench-figure-sizes"
+                        role="group"
+                        aria-label={`Step ${index + 1} image size`}
+                      >
+                        {WORKBENCH_IMAGE_SIZES.map((size) => (
+                          <button
+                            key={size.id}
+                            type="button"
+                            className={
+                              snapWorkbenchImageWidth(item.imageWidth ?? 100) ===
+                              size.width
+                                ? "workbench-figure-size is-active"
+                                : "workbench-figure-size"
+                            }
+                            aria-pressed={
+                              snapWorkbenchImageWidth(item.imageWidth ?? 100) ===
+                              size.width
+                            }
+                            onClick={() =>
+                              updateStep(item.id, { imageWidth: size.width })
+                            }
+                          >
+                            {size.label}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        className="workbench-figure-caption-input"
+                        value={item.imageCaption || ""}
+                        placeholder="Add a caption…"
+                        onChange={(event) =>
+                          updateStep(item.id, {
+                            imageCaption: event.target.value,
+                          })
+                        }
+                        aria-label={`Step ${index + 1} image caption`}
+                      />
+                    </div>
                     <button
                       type="button"
                       className="workbench-submit-button workbench-submit-button--ghost"
-                      onClick={() => updateStep(item.id, { imageUrl: null })}
+                      onClick={() =>
+                        updateStep(item.id, {
+                          imageUrl: null,
+                          imageWidth: 100,
+                          imageCaption: "",
+                        })
+                      }
                     >
                       remove image
                     </button>

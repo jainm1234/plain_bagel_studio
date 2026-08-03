@@ -83,6 +83,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       steps: body.steps || existing.steps,
       schematics: body.schematics || existing.schematics,
       files: body.files || existing.files,
+      related: body.related ?? existing.related ?? [],
       author: {
         id: author.id,
         handle: author.handle || existing.author_handle,

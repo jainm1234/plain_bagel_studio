@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       steps: body.steps || [],
       schematics: body.schematics || [],
       files: body.files || [],
+      related: body.related || [],
       author,
     };
     const row = await createPost(input);
