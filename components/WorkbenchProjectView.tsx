@@ -105,7 +105,7 @@ export default function WorkbenchProjectView({
   const descriptionText =
     stripHtml(draft.postHtml) || draft.lead || initialDraft.lead;
   const hasDescription =
-    Boolean(descriptionText) || /<(img|video)\b/i.test(draft.postHtml);
+    Boolean(descriptionText) || /<(img|video|figure)\b/i.test(draft.postHtml);
 
   const toc = [
     hasDescription ? { label: "description", href: "#description" } : null,
@@ -262,7 +262,6 @@ export default function WorkbenchProjectView({
           <h2 className="workbench-project-heading">scripts</h2>
           {scripts.map((script, index) => {
             const name = script.path.split("/").pop() || script.path || "script";
-            const ext = name.includes(".") ? `.${name.split(".").pop()}` : "";
             const href =
               draft.postId === "note-taker"
                 ? `/projects/note-taker/${name}`
@@ -284,7 +283,7 @@ export default function WorkbenchProjectView({
                     href={href}
                     download={name}
                   >
-                    download{ext}
+                    download
                   </a>
                 </div>
                 <pre className="workbench-project-pre">{script.content}</pre>

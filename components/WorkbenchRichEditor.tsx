@@ -6,7 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import Image from "@tiptap/extension-image";
+import { WorkbenchImage } from "@/components/WorkbenchImageExtension";
 import { Video } from "@/components/WorkbenchVideoExtension";
 
 type Props = {
@@ -170,12 +170,7 @@ export default function WorkbenchRichEditor({
         undoRedo: false,
       }),
       Underline,
-      Image.configure({
-        allowBase64: true,
-        HTMLAttributes: {
-          class: "workbench-inline-image",
-        },
-      }),
+      WorkbenchImage,
       Video,
       DownloadLink.configure({
         openOnClick: false,

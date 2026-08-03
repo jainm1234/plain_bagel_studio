@@ -4,10 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import WorkbenchAccount from "@/components/WorkbenchAccount";
 import WorkbenchProjectCard from "@/components/WorkbenchProjectCard";
 import { openWorkbenchSubmit } from "@/lib/workbenchPostEdits";
-import {
-  WORKBENCH_SEARCH_SUGGESTIONS,
-  projectMatchesWorkbenchQuery,
-} from "@/lib/workbenchProjects";
+import { projectMatchesWorkbenchQuery } from "@/lib/workbenchProjects";
 
 export type WorkbenchProject = {
   title: string;
@@ -45,7 +42,6 @@ type Props = {
 
 export default function WorkbenchFeed({ projects }: Props) {
   const [query, setQuery] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
   const [view, setView] = useState<ViewMode>("all");
   const [viewOpen, setViewOpen] = useState(false);
   const [sort, setSort] = useState<SortMode>("recent");
@@ -53,14 +49,12 @@ export default function WorkbenchFeed({ projects }: Props) {
   const [randomSeed, setRandomSeed] = useState(0);
   const viewRef = useRef<HTMLDivElement>(null);
   const sortRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
       const target = event.target as Node;
       if (!viewRef.current?.contains(target)) setViewOpen(false);
       if (!sortRef.current?.contains(target)) setSortOpen(false);
-      if (!searchRef.current?.contains(target)) setSearchFocused(false);
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
@@ -70,20 +64,6 @@ export default function WorkbenchFeed({ projects }: Props) {
     VIEW_OPTIONS.find((option) => option.id === view)?.label ?? view;
   const sortLabel =
     SORT_OPTIONS.find((option) => option.id === sort)?.label ?? sort;
-
-  const suggestionMatches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [...WORKBENCH_SEARCH_SUGGESTIONS];
-    return WORKBENCH_SEARCH_SUGGESTIONS.filter(
-      (item) =>
-        item.label.includes(q) ||
-        item.query.includes(q) ||
-        q.split(/\s+/).some((token) => token && item.label.includes(token)),
-    );
-  }, [query]);
-
-  const showSuggestions =
-    searchFocused && suggestionMatches.length > 0 && query.trim().length < 40;
 
   const filtered = useMemo(() => {
     let next = projects.filter((project) => {
@@ -110,11 +90,6 @@ export default function WorkbenchFeed({ projects }: Props) {
     return next;
   }, [projects, query, view, sort, randomSeed]);
 
-  function applySuggestion(label: string) {
-    setQuery(label);
-    setSearchFocused(false);
-  }
-
   return (
     <>
       <header className="workbench-topbar">
@@ -138,41 +113,15 @@ export default function WorkbenchFeed({ projects }: Props) {
           </p>
         </div>
 
-        <div className="workbench-search-wrap" ref={searchRef}>
-          <input
-            className="workbench-search"
-            type="search"
-            placeholder="Search work bench"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            aria-label="Search work bench"
-            aria-expanded={showSuggestions}
-            aria-controls="workbench-search-suggestions"
-            autoComplete="off"
-          />
-          {showSuggestions ? (
-            <div
-              id="workbench-search-suggestions"
-              className="workbench-search-suggestions"
-              role="listbox"
-              aria-label="Search suggestions"
-            >
-              <p className="workbench-search-suggestions-label">try asking</p>
-              {suggestionMatches.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  role="option"
-                  className="workbench-search-suggestion"
-                  onClick={() => applySuggestion(item.label)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <input
+          className="workbench-search"
+          type="search"
+          placeholder="Search work bench"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Search work bench"
+          autoComplete="off"
+        />
 
         <div className="workbench-filters">
           <div className="workbench-dd" ref={viewRef}>

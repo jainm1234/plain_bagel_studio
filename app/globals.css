@@ -1546,18 +1546,13 @@ a:hover {
   color: #000;
 }
 
-.workbench-search-wrap {
-  position: relative;
-  margin-bottom: 2rem;
-}
-
 .workbench-search {
   display: block;
   width: 100%;
   border: 0;
   background: transparent;
   padding: 0.25rem 0;
-  margin-bottom: 0;
+  margin-bottom: 2rem;
   font-family: inherit;
   font-size: 12px;
   letter-spacing: 0.02em;
@@ -1570,50 +1565,6 @@ a:hover {
 
 .workbench-search:focus {
   outline: none;
-}
-
-.workbench-search-suggestions {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  border: 1px solid #000;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-.workbench-search-suggestions-label {
-  margin: 0;
-  padding: 0.55rem 0.7rem 0.25rem;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  color: #777;
-}
-
-.workbench-search-suggestion {
-  display: block;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border: 0;
-  border-top: 1px solid #e8e8e8;
-  background: #fff;
-  color: #000;
-  font-family: inherit;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workbench-search-suggestions-label + .workbench-search-suggestion {
-  border-top: 0;
-}
-
-.workbench-search-suggestion:hover {
-  background: #f5f5f5;
 }
 
 .workbench-submit-link {
@@ -3346,9 +3297,96 @@ ol.workbench-preview-edit-list > li {
   width: 100%;
   max-width: 100%;
   height: auto;
-  margin: 0.85rem 0;
+  margin: 0;
   border: 1px solid #e8e8e8;
   object-fit: contain;
+}
+
+.workbench-figure {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  margin: 0.85rem 0;
+  padding: 0;
+}
+
+.workbench-figure.is-selected {
+  outline: 1px solid #111;
+  outline-offset: 2px;
+}
+
+.workbench-figure-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.workbench-figure-sizes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.workbench-figure-size {
+  min-width: 1.6rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #ccc;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: #777;
+  cursor: pointer;
+}
+
+.workbench-figure-size:hover {
+  border-color: #111;
+  color: #111;
+}
+
+.workbench-figure-size.is-active {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.workbench-figure-caption,
+.workbench-project-copy .workbench-figure-caption,
+.workbench-rte-content .workbench-figure-caption {
+  margin: 0.35rem 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: #777;
+}
+
+.workbench-figure-caption-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.15rem 0;
+  border: 0;
+  border-bottom: 1px dashed #ccc;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: #777;
+}
+
+.workbench-figure-caption-input::placeholder {
+  color: #bbb;
+}
+
+.workbench-figure-caption-input:focus {
+  outline: none;
+  border-bottom-color: #111;
+  color: #111;
 }
 
 .workbench-rte-content video,

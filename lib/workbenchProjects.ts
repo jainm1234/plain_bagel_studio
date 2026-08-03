@@ -56,33 +56,6 @@ export function getPublicProfile(authorId: string) {
   return null;
 }
 
-export const WORKBENCH_SEARCH_SUGGESTIONS = [
-  {
-    label: "what is a good first project?",
-    query: "beginner first starter kit",
-  },
-  {
-    label: "what can i make using an esp32 and leds?",
-    query: "esp32 led",
-  },
-  {
-    label: "hold to talk / voice projects",
-    query: "audio microphone bluetooth",
-  },
-  {
-    label: "projects with a button",
-    query: "button",
-  },
-  {
-    label: "robotics and simulation",
-    query: "robotics simulation",
-  },
-  {
-    label: "bluetooth hardware builds",
-    query: "bluetooth ble",
-  },
-] as const;
-
 const SEARCH_STOP_WORDS = new Set([
   "a",
   "an",
@@ -110,20 +83,11 @@ export function workbenchSearchTokens(query: string) {
     .filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token));
 }
 
-export function resolveWorkbenchSearchQuery(query: string) {
-  const trimmed = query.trim().toLowerCase();
-  const suggestion = WORKBENCH_SEARCH_SUGGESTIONS.find(
-    (item) => item.label === trimmed,
-  );
-  return suggestion ? `${query} ${suggestion.query}` : query;
-}
-
 export function projectMatchesWorkbenchQuery(
   project: WorkbenchProject,
   query: string,
 ) {
-  const resolved = resolveWorkbenchSearchQuery(query);
-  const q = resolved.trim().toLowerCase();
+  const q = query.trim().toLowerCase();
   if (!q) return true;
 
   const haystack = [

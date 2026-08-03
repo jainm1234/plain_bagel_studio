@@ -472,6 +472,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const historyIndexRef = useRef(0);
   const skipHistoryRef = useRef(false);
   const pendingSubmitRef = useRef(false);
+  const editBaselineRef = useRef<{
+    doc: DocSnapshot;
+    files: UploadedFile[];
+    paste: string;
+  } | null>(null);
   const schematicUploadRef = useRef<HTMLInputElement | null>(null);
   const scriptUploadRef = useRef<HTMLInputElement | null>(null);
 
@@ -510,6 +515,14 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       steps,
       schematics,
     };
+  }
+
+  function hasEditChanges() {
+    const baseline = editBaselineRef.current;
+    if (!editPostId || !baseline) return false;
+    if (!docsEqual(currentDoc(), baseline.doc)) return true;
+    if (paste !== baseline.paste) return true;
+    return JSON.stringify(files) !== JSON.stringify(baseline.files);
   }
 
   function applyDoc(snapshot: DocSnapshot) {
@@ -705,6 +718,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   function reset() {
     setStep("code");
     setEditPostId(null);
+    editBaselineRef.current = null;
     setProjectName("");
     setSocialLink("");
     setRelated([]);
@@ -769,7 +783,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       })),
     };
     setEditPostId(draft.postId);
-    setFiles(draft.files.map((file) => ({ path: file.path, content: file.content })));
+    const loadedFiles = draft.files.map((file) => ({
+      path: file.path,
+      content: file.content,
+    }));
+    setFiles(loadedFiles);
     setPaste("");
     setRelated([]);
     setRelatedQuery("");
@@ -782,6 +800,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     });
     applyDoc(snapshot);
     resetHistory(snapshot);
+    editBaselineRef.current = {
+      doc: cloneDoc(snapshot),
+      files: loadedFiles.map((file) => ({ ...file })),
+      paste: "",
+    };
     setStep("header");
     setOpen(true);
   }
@@ -907,7 +930,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   }
 
   async function saveEdit() {
-    if (!editPostId) return;
+    if (!editPostId || !hasEditChanges()) return;
     if (!user) {
       pendingSubmitRef.current = true;
       openLogin("log in to save your edits");
@@ -1504,7 +1527,15 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }
   }
 
+  function goSaveEdit() {
+    void saveEdit();
+  }
+
   const canGoBack = step !== "code" || Boolean(editPostId);
+  const editingPreview =
+    Boolean(editPostId) &&
+    PREVIEW_STEPS.includes(step as (typeof PREVIEW_STEPS)[number]);
+  const isEditDirty = hasEditChanges();
 
   const nextLabel =
     step === "code"
@@ -1513,7 +1544,9 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         : "create a draft for me"
       : step === "scripts"
         ? editPostId
-          ? "save"
+          ? analyzing
+            ? "saving…"
+            : "save"
           : "submit"
         : step === "done"
           ? "close"
@@ -1528,7 +1561,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const showScripts = scriptList.length > 0 || step === "scripts";
   const showDescription =
     Boolean(postHtml.replace(/<[^>]+>/g, "").trim()) ||
-    /<(img|video)\b/i.test(postHtml) ||
+    /<(img|video|figure)\b/i.test(postHtml) ||
     step === "description";
   const previewStepIndex = PREVIEW_STEPS.indexOf(
     step as (typeof PREVIEW_STEPS)[number],
@@ -1659,7 +1692,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
             >
               <h2 className="workbench-project-heading">description</h2>
               {postHtml.replace(/<[^>]+>/g, "").trim() ||
-              /<(img|video)\b/i.test(postHtml) ? (
+              /<(img|video|figure)\b/i.test(postHtml) ? (
                 <div
                   className="workbench-project-copy"
                   dangerouslySetInnerHTML={{ __html: postHtml }}
@@ -2537,6 +2570,27 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                       }
                     >
                       {nextLabel}
+                    </button>
+                  </div>
+                ) : editingPreview ? (
+                  <div className="workbench-flow-footer-actions">
+                    {step !== "scripts" ? (
+                      <button
+                        className="workbench-submit-button workbench-submit-button--ghost"
+                        type="button"
+                        onClick={goNext}
+                        disabled={analyzing}
+                      >
+                        next
+                      </button>
+                    ) : null}
+                    <button
+                      className="workbench-submit-button"
+                      type="button"
+                      onClick={goSaveEdit}
+                      disabled={analyzing || !isEditDirty}
+                    >
+                      {analyzing ? "saving…" : "save"}
                     </button>
                   </div>
                 ) : (
