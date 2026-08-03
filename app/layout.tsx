@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${suisseIntl.variable} ${suisseIntl.className}`}>
-        <ClerkProvider>
+        <ClerkProvider afterSignOutUrl="/work-bench">
           <WorkbenchAuthProvider>
             {children}
             <SubmitProjectFlow variant="host" />

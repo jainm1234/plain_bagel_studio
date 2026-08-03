@@ -3,52 +3,84 @@
 import { useEffect, useState } from "react";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import {
-  getFireCount,
+  fetchLikeState,
   getReactorId,
-  hasFired,
-  toggleFire,
+  toggleLikeRemote,
 } from "@/lib/workbenchReactions";
 
 type Props = {
   postId: string;
 };
 
+const LIKES_CHANGED = "workbench-likes-changed";
+
 export default function WorkbenchFireReaction({ postId }: Props) {
-  const { user, ready } = useWorkbenchAuth();
-  const [active, setActive] = useState(false);
+  const { user, ready, openLogin } = useWorkbenchAuth();
+  const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !postId) return;
     const reactorId = getReactorId(user?.id);
-    setActive(hasFired(postId, reactorId));
-    setCount(getFireCount(postId));
+    let cancelled = false;
+
+    function refresh() {
+      fetchLikeState(postId, reactorId).then((state) => {
+        if (cancelled) return;
+        setCount(state.count);
+        setLiked(state.liked);
+      });
+    }
+
+    refresh();
+    function onChanged() {
+      refresh();
+    }
+    window.addEventListener(LIKES_CHANGED, onChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(LIKES_CHANGED, onChanged);
+    };
   }, [postId, ready, user?.id]);
 
-  function onToggle() {
-    if (!ready) return;
-    const reactorId = getReactorId(user?.id);
-    const next = toggleFire(postId, reactorId);
-    setActive(next.active);
-    setCount(next.count);
+  async function onToggle() {
+    if (!ready || busy) return;
+    if (!user) {
+      openLogin("log in to like this post");
+      return;
+    }
+    setBusy(true);
+    try {
+      const next = await toggleLikeRemote(postId, user.id);
+      setLiked(next.liked);
+      setCount(next.count);
+      window.dispatchEvent(new Event(LIKES_CHANGED));
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Could not update like",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <button
       type="button"
       className={
-        active
+        liked
           ? "workbench-reaction workbench-reaction--fire is-active"
           : "workbench-reaction workbench-reaction--fire"
       }
-      onClick={onToggle}
-      aria-pressed={active}
+      onClick={() => void onToggle()}
+      aria-pressed={liked}
       aria-label={
-        active
-          ? `Remove fire reaction, ${count} total`
-          : `Add fire reaction, ${count} total`
+        liked
+          ? `Remove like, ${count} total`
+          : `Add like, ${count} total`
       }
-      disabled={!ready}
+      disabled={!ready || busy}
     >
       <span className="workbench-reaction-emoji" aria-hidden="true">
         🔥

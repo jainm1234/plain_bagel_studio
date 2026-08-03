@@ -3,6 +3,7 @@
 import WorkbenchAccount from "@/components/WorkbenchAccount";
 import WorkbenchComments from "@/components/WorkbenchComments";
 import EditPostButton from "@/components/EditPostButton";
+import DeletePostButton from "@/components/DeletePostButton";
 import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -60,11 +61,18 @@ export default function WorkbenchProjectShell({
         </Link>
         <div className="workbench-topbar-actions">
           {editDraft ? (
-            <EditPostButton
-              author={author}
-              draft={editDraft}
-              className="workbench-topbar-edit"
-            />
+            <>
+              <EditPostButton
+                author={author}
+                draft={editDraft}
+                className="workbench-topbar-edit"
+              />
+              <DeletePostButton
+                author={author}
+                draft={editDraft}
+                className="workbench-topbar-edit"
+              />
+            </>
           ) : null}
           <WorkbenchAccount />
         </div>

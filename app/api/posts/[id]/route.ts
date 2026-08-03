@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   draftFromRecord,
+  deletePost,
   getPost,
   projectFromRecord,
   updatePost,
@@ -110,6 +111,40 @@ export async function PUT(request: NextRequest, { params }: Params) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "failed to update post";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Supabase is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const author = await resolveAuthor();
+  if (!author) {
+    return NextResponse.json({ error: "sign in required" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const postId = decodeURIComponent(id);
+
+  try {
+    const existing = await getPost(postId);
+    if (!existing) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (existing.author_id !== author.id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    await deletePost(postId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "failed to delete post";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

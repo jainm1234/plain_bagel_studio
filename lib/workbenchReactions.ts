@@ -1,22 +1,4 @@
-const STORAGE_KEY = "workbench.reactions.v1";
 const REACTOR_KEY = "workbench.reactorId.v1";
-
-type ReactionMap = Record<string, { fire: string[] }>;
-
-function readAll(): ReactionMap {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as ReactionMap;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeAll(map: ReactionMap) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-}
 
 export function getReactorId(userId?: string | null) {
   if (userId) return userId;
@@ -34,34 +16,47 @@ export function getReactorId(userId?: string | null) {
   }
 }
 
-export function getFireCount(postId: string) {
-  return readAll()[postId]?.fire?.length ?? 0;
-}
-
-export function hasFired(postId: string, reactorId: string) {
-  return (readAll()[postId]?.fire ?? []).includes(reactorId);
-}
-
-export function toggleFire(postId: string, reactorId: string) {
-  const map = readAll();
-  const current = map[postId]?.fire ?? [];
-  const active = current.includes(reactorId);
-  const next = active
-    ? current.filter((id) => id !== reactorId)
-    : [...current, reactorId];
-
-  if (next.length === 0) {
-    const { [postId]: _, ...rest } = map;
-    writeAll(rest);
-  } else {
-    writeAll({ ...map, [postId]: { fire: next } });
-  }
-
-  return { count: next.length, active: !active };
-}
-
 export function postIdFromHref(href: string) {
   const trimmed = href.replace(/\/$/, "");
-  const match = trimmed.match(/\/projects\/([^/]+)$/);
-  return match?.[1] ?? trimmed.replace(/^\//, "").replace(/\//g, "-");
+  const workbench = trimmed.match(/\/work-bench\/p\/([^/?#]+)$/);
+  if (workbench?.[1]) return decodeURIComponent(workbench[1]);
+  const project = trimmed.match(/\/projects\/([^/]+)$/);
+  if (project?.[1]) return decodeURIComponent(project[1]);
+  return trimmed.replace(/^\//, "").replace(/\//g, "-");
+}
+
+export async function fetchLikeState(postId: string, reactorId: string) {
+  const params = new URLSearchParams({
+    postId,
+    reactorId,
+  });
+  const response = await fetch(`/api/likes?${params.toString()}`);
+  if (!response.ok) {
+    return { count: 0, liked: false, configured: false };
+  }
+  return (await response.json()) as {
+    count: number;
+    liked: boolean;
+    configured?: boolean;
+  };
+}
+
+export async function toggleLikeRemote(postId: string, reactorId: string) {
+  const response = await fetch("/api/likes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId, reactorId }),
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    count?: number;
+    liked?: boolean;
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(data.error || "Could not update like");
+  }
+  return {
+    count: data.count ?? 0,
+    liked: Boolean(data.liked),
+  };
 }

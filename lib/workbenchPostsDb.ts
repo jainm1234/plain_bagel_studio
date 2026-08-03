@@ -110,7 +110,13 @@ export async function listPosts(): Promise<WorkbenchPostRecord[]> {
     .from("posts")
     .select("*")
     .order("updated_at", { ascending: false });
-  if (error) throw error;
+  if (error) {
+    const hint =
+      error.code === "PGRST205" || /could not find the table/i.test(error.message)
+        ? " Run supabase/schema.sql in the Supabase SQL editor, then try again."
+        : "";
+    throw new Error(`${error.message}${hint}`);
+  }
   return (data || []) as WorkbenchPostRecord[];
 }
 
@@ -160,4 +166,10 @@ export async function updatePost(
     .single();
   if (error) throw error;
   return data as WorkbenchPostRecord;
+}
+
+export async function deletePost(postId: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("posts").delete().eq("id", postId);
+  if (error) throw error;
 }

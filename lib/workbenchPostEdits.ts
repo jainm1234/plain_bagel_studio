@@ -74,6 +74,13 @@ export function savePostEdit(draft: WorkbenchPostDraft) {
   writeAll(map);
 }
 
+export function removePostEdit(postId: string) {
+  const map = readAll();
+  if (!(postId in map)) return;
+  delete map[postId];
+  writeAll(map);
+}
+
 export function mergePostDraft(
   base: WorkbenchPostDraft,
   overlay?: WorkbenchPostDraft | null,

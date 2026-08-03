@@ -29,3 +29,22 @@ create policy "posts are publicly readable"
   for select
   to anon, authenticated
   using (true);
+
+-- Likes (one row per user/reactor per post)
+create table if not exists public.post_likes (
+  post_id text not null,
+  reactor_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (post_id, reactor_id)
+);
+
+create index if not exists post_likes_post_id_idx on public.post_likes (post_id);
+
+alter table public.post_likes enable row level security;
+
+drop policy if exists "likes are publicly readable" on public.post_likes;
+create policy "likes are publicly readable"
+  on public.post_likes
+  for select
+  to anon, authenticated
+  using (true);
