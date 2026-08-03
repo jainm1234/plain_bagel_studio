@@ -7,12 +7,12 @@ import WorkbenchFireReaction from "@/components/WorkbenchFireReaction";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import { displayAuthorHandle } from "@/lib/workbenchPostEdits";
 import { postIdFromHref } from "@/lib/workbenchReactions";
+import { socialPlatformLabel } from "@/lib/socialHints";
 
 type Props = {
   title: string;
   href: string;
   image?: string;
-  tags: string[];
   description?: string;
   socialLink?: string;
   comingSoon?: boolean;
@@ -21,19 +21,6 @@ type Props = {
     handle: string;
   };
 };
-
-function socialLabel(url: string) {
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    if (host.includes("instagram")) return "instagram";
-    if (host.includes("tiktok")) return "tiktok";
-    if (host.includes("youtube") || host.includes("youtu.be")) return "youtube";
-    if (host.includes("x.com") || host.includes("twitter")) return "x";
-    return host;
-  } catch {
-    return "social";
-  }
-}
 
 function socialPreviewSrc(socialLink: string) {
   return `/api/social-image?url=${encodeURIComponent(socialLink.trim())}`;
@@ -142,7 +129,7 @@ export default function WorkbenchProjectCard({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {socialLabel(socialLink)}
+                {socialPlatformLabel(socialLink)}
               </a>
             </>
           ) : null}

@@ -12,19 +12,7 @@ import {
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
-
-function socialLabel(url: string) {
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    if (host.includes("instagram")) return "instagram";
-    if (host.includes("tiktok")) return "tiktok";
-    if (host.includes("youtube") || host.includes("youtu.be")) return "youtube";
-    if (host.includes("x.com") || host.includes("twitter")) return "x";
-    return host;
-  } catch {
-    return "social";
-  }
-}
+import { socialPlatformLabel } from "@/lib/socialHints";
 
 type Props = {
   children: ReactNode;
@@ -109,7 +97,7 @@ export default function WorkbenchProjectShell({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {socialLabel(socialLink)}
+                  {socialPlatformLabel(socialLink)}
                 </a>
               </>
             ) : null}

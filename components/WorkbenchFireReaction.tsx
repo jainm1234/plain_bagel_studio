@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
-import {
-  fetchLikeState,
-  getReactorId,
-  toggleLikeRemote,
-} from "@/lib/workbenchReactions";
+import { fetchLikeState, toggleLikeRemote } from "@/lib/workbenchReactions";
 
 type Props = {
   postId: string;
@@ -22,11 +18,10 @@ export default function WorkbenchFireReaction({ postId }: Props) {
 
   useEffect(() => {
     if (!ready || !postId) return;
-    const reactorId = getReactorId(user?.id);
     let cancelled = false;
 
     function refresh() {
-      fetchLikeState(postId, reactorId).then((state) => {
+      fetchLikeState(postId, user?.id).then((state) => {
         if (cancelled) return;
         setCount(state.count);
         setLiked(state.liked);

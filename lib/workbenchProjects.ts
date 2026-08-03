@@ -161,3 +161,32 @@ export function searchWorkbenchProjects(query: string, excludeHrefs: string[] = 
     .filter((project) => projectMatchesWorkbenchQuery(project, query))
     .slice(0, 8);
 }
+
+function projectKey(project: WorkbenchProject) {
+  const title = project.title.trim().toLowerCase();
+  const author = (project.author?.handle || project.author?.id || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]/g, "");
+  return `${title}::${author}`;
+}
+
+/** Merge seeded + Supabase projects without showing the same project twice. */
+export function mergeFeedProjects(
+  seeded: WorkbenchProject[],
+  fromDb: WorkbenchProject[],
+  idFromHref: (href: string) => string,
+) {
+  const seededIds = new Set(seeded.map((project) => idFromHref(project.href)));
+  const seededKeys = new Set(seeded.map(projectKey));
+  const seededHrefs = new Set(seeded.map((project) => project.href));
+
+  const extras = fromDb.filter((project) => {
+    if (seededHrefs.has(project.href)) return false;
+    if (seededIds.has(idFromHref(project.href))) return false;
+    if (seededKeys.has(projectKey(project))) return false;
+    return true;
+  });
+
+  return [...seeded, ...extras];
+}

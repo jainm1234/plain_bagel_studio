@@ -17,6 +17,18 @@ function hostLabel(hostname: string) {
   return host || "social";
 }
 
+/** Platform label from a social URL or hostname. */
+export function socialPlatformLabel(urlOrHost: string) {
+  try {
+    if (/^https?:\/\//i.test(urlOrHost)) {
+      return hostLabel(new URL(urlOrHost).hostname);
+    }
+  } catch {
+    // fall through
+  }
+  return hostLabel(urlOrHost);
+}
+
 function titleFromPath(pathname: string) {
   const parts = pathname
     .split("/")

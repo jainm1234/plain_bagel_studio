@@ -40,37 +40,6 @@ export async function getLikeState(
   return { count: count ?? 0, liked };
 }
 
-export async function getLikeStates(
-  postIds: string[],
-  reactorId?: string | null,
-): Promise<Record<string, LikeState>> {
-  const unique = [...new Set(postIds.filter(Boolean))];
-  const result: Record<string, LikeState> = {};
-  for (const id of unique) {
-    result[id] = { count: 0, liked: false };
-  }
-  if (!unique.length || !isSupabaseConfigured()) return result;
-
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("post_likes")
-    .select("post_id, reactor_id")
-    .in("post_id", unique);
-
-  if (error) throw error;
-
-  for (const row of data || []) {
-    const id = row.post_id as string;
-    if (!result[id]) result[id] = { count: 0, liked: false };
-    result[id].count += 1;
-    if (reactorId && row.reactor_id === reactorId) {
-      result[id].liked = true;
-    }
-  }
-
-  return result;
-}
-
 export async function toggleLike(
   postId: string,
   reactorId: string,

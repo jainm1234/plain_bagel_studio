@@ -1,38 +1,31 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import {
-  getLikeState,
-  getLikeStates,
-  toggleLike,
-} from "@/lib/workbenchLikesDb";
+import { getLikeState, toggleLike } from "@/lib/workbenchLikesDb";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ configured: false, likes: {}, count: 0, liked: false });
+    return NextResponse.json({
+      configured: false,
+      count: 0,
+      liked: false,
+    });
   }
 
   const { searchParams } = request.nextUrl;
   const postId = searchParams.get("postId")?.trim() || "";
-  const postIds = (searchParams.get("postIds") || "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
   const reactorId =
     searchParams.get("reactorId")?.trim() ||
     (await auth()).userId ||
     "";
 
+  if (!postId) {
+    return NextResponse.json({ error: "missing postId" }, { status: 400 });
+  }
+
   try {
-    if (postIds.length) {
-      const likes = await getLikeStates(postIds, reactorId || null);
-      return NextResponse.json({ configured: true, likes });
-    }
-    if (!postId) {
-      return NextResponse.json({ error: "missing postId" }, { status: 400 });
-    }
     const state = await getLikeState(postId, reactorId || null);
     return NextResponse.json({ configured: true, ...state });
   } catch (error) {

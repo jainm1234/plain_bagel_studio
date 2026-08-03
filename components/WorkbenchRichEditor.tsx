@@ -412,19 +412,6 @@ export function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export function socialHostLabel(url: string) {
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    if (host.includes("instagram")) return "instagram";
-    if (host.includes("tiktok")) return "tiktok";
-    if (host.includes("youtube") || host.includes("youtu.be")) return "youtube";
-    if (host.includes("x.com") || host.includes("twitter")) return "x";
-    return host;
-  } catch {
-    return "social";
-  }
-}
-
 export function fileBasename(path: string) {
   return path.split("/").pop() || path;
 }

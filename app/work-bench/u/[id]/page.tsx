@@ -10,17 +10,9 @@ import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import {
   getProjectsByAuthor,
   getPublicProfile,
+  mergeFeedProjects,
 } from "@/lib/workbenchProjects";
 import { postIdFromHref } from "@/lib/workbenchReactions";
-
-function projectKey(project: WorkbenchProject) {
-  const title = project.title.trim().toLowerCase();
-  const author = (project.author?.handle || project.author?.id || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[._-]/g, "");
-  return `${title}::${author}`;
-}
 
 export default function WorkbenchProfilePage() {
   const params = useParams<{ id: string }>();
@@ -35,22 +27,10 @@ export default function WorkbenchProfilePage() {
 
   const publicProfile = useMemo(() => getPublicProfile(id), [id]);
   const seededPosts = useMemo(() => getProjectsByAuthor(id), [id]);
-  const posts = useMemo(() => {
-    const seededHrefs = new Set(seededPosts.map((project) => project.href));
-    const seededIds = new Set(
-      seededPosts.map((project) => postIdFromHref(project.href)),
-    );
-    const seededKeys = new Set(seededPosts.map(projectKey));
-    return [
-      ...seededPosts,
-      ...dbPosts.filter((project) => {
-        if (seededHrefs.has(project.href)) return false;
-        if (seededIds.has(postIdFromHref(project.href))) return false;
-        if (seededKeys.has(projectKey(project))) return false;
-        return true;
-      }),
-    ];
-  }, [seededPosts, dbPosts]);
+  const posts = useMemo(
+    () => mergeFeedProjects(seededPosts, dbPosts, postIdFromHref),
+    [seededPosts, dbPosts],
+  );
 
   const profileHandle = isSelf
     ? user?.handle

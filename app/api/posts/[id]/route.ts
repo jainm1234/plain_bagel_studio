@@ -1,6 +1,9 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  resolveWorkbenchAuthor,
+  sameAuthorHandle,
+} from "@/lib/workbenchAuthor";
 import {
   draftFromRecord,
   deletePost,
@@ -13,27 +16,6 @@ import {
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
-
-function usernameFromEmail(email: string | undefined) {
-  if (!email) return "";
-  const local = email.split("@")[0]?.trim() || "";
-  return local.toLowerCase();
-}
-
-async function resolveAuthor() {
-  const { userId } = await auth();
-  if (!userId) return null;
-  const user = await currentUser();
-  const email =
-    user?.primaryEmailAddress?.emailAddress ||
-    user?.emailAddresses?.[0]?.emailAddress;
-  const handle =
-    usernameFromEmail(email) ||
-    user?.username ||
-    user?.firstName?.toLowerCase() ||
-    "user";
-  return { id: userId, handle };
-}
 
 export async function GET(_request: NextRequest, { params }: Params) {
   if (!isSupabaseConfigured()) {
@@ -55,7 +37,8 @@ export async function GET(_request: NextRequest, { params }: Params) {
       author: { id: row.author_id, handle: row.author_handle },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "failed to load post";
+    const message =
+      error instanceof Error ? error.message : "failed to load post";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -68,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     );
   }
 
-  const author = await resolveAuthor();
+  const author = await resolveWorkbenchAuthor();
   if (!author) {
     return NextResponse.json({ error: "sign in required" }, { status: 401 });
   }
@@ -81,13 +64,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (!existing) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    if (existing.author_id !== author.id) {
-      const sameHandle =
-        existing.author_handle.replace(/[._-]/g, "").toLowerCase() ===
-        author.handle.replace(/[._-]/g, "").toLowerCase();
-      if (!sameHandle) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
-      }
+    if (
+      existing.author_id !== author.id &&
+      !sameAuthorHandle(existing.author_handle, author.handle)
+    ) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const body = (await request.json()) as Partial<WorkbenchPostInput>;
@@ -128,7 +109,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     );
   }
 
-  const author = await resolveAuthor();
+  const author = await resolveWorkbenchAuthor();
   if (!author) {
     return NextResponse.json({ error: "sign in required" }, { status: 401 });
   }
@@ -141,7 +122,10 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     if (!existing) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    if (existing.author_id !== author.id) {
+    if (
+      existing.author_id !== author.id &&
+      !sameAuthorHandle(existing.author_handle, author.handle)
+    ) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 

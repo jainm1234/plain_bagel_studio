@@ -1,21 +1,3 @@
-const REACTOR_KEY = "workbench.reactorId.v1";
-
-export function getReactorId(userId?: string | null) {
-  if (userId) return userId;
-  try {
-    const existing = localStorage.getItem(REACTOR_KEY);
-    if (existing) return existing;
-    const next =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? `anon_${crypto.randomUUID().slice(0, 8)}`
-        : `anon_${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(REACTOR_KEY, next);
-    return next;
-  } catch {
-    return "anon_local";
-  }
-}
-
 export function postIdFromHref(href: string) {
   const trimmed = href.replace(/\/$/, "");
   const workbench = trimmed.match(/\/work-bench\/p\/([^/?#]+)$/);
@@ -25,11 +7,9 @@ export function postIdFromHref(href: string) {
   return trimmed.replace(/^\//, "").replace(/\//g, "-");
 }
 
-export async function fetchLikeState(postId: string, reactorId: string) {
-  const params = new URLSearchParams({
-    postId,
-    reactorId,
-  });
+export async function fetchLikeState(postId: string, reactorId?: string | null) {
+  const params = new URLSearchParams({ postId });
+  if (reactorId) params.set("reactorId", reactorId);
   const response = await fetch(`/api/likes?${params.toString()}`);
   if (!response.ok) {
     return { count: 0, liked: false, configured: false };

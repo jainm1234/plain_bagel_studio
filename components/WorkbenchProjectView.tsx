@@ -79,10 +79,14 @@ export default function WorkbenchProjectView({
       if (postId && postId !== initialDraft.postId) return;
       void refresh();
     }
+    function onStorage() {
+      void refresh();
+    }
     window.addEventListener("workbench-post-edited", onEdited);
-    window.addEventListener("storage", () => void refresh());
+    window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener("workbench-post-edited", onEdited);
+      window.removeEventListener("storage", onStorage);
     };
   }, [initialDraft.postId, refresh]);
 

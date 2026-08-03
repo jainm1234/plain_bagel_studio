@@ -15,7 +15,7 @@ import {
   type SchematicGuess,
 } from "@/lib/reverseEngineer";
 import { analyzeProject } from "@/lib/analyzeProject";
-import { fetchSocialHints } from "@/lib/socialHints";
+import { fetchSocialHints, socialPlatformLabel } from "@/lib/socialHints";
 import {
   searchWorkbenchProjects,
 } from "@/lib/workbenchProjects";
@@ -23,7 +23,6 @@ import WorkbenchSchematic from "@/components/WorkbenchSchematic";
 import WorkbenchRichEditor, {
   buildProjectPostHtml,
   fileBasename,
-  socialHostLabel,
   withSocialInPostHtml,
 } from "@/components/WorkbenchRichEditor";
 import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
@@ -1608,7 +1607,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                     rel="noopener noreferrer"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {socialHostLabel(socialLink)}
+                    {socialPlatformLabel(socialLink)}
                   </a>
                 </>
               ) : null}

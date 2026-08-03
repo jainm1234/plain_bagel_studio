@@ -52,8 +52,3 @@ export default function WorkbenchProjectCover({
 
   return null;
 }
-
-export function hasSocialCover(socialLink?: string, coverImage?: string | null) {
-  if (coverImage) return true;
-  return Boolean(socialLink?.trim());
-}
