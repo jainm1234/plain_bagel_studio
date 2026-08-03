@@ -213,7 +213,9 @@ export function WorkbenchAuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    void clerk.signOut({ redirectUrl: "/work-bench" });
+    void clerk.signOut().then(() => {
+      window.location.assign("/work-bench");
+    });
   }, [clerk]);
 
   const updateProfile = useCallback(
