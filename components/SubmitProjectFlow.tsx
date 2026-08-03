@@ -904,7 +904,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       throw new Error(data.error || `Could not ${mode} post (${response.status})`);
     }
 
-    return data;
+    return { ...data, prepared };
   }
 
   async function saveEdit() {
@@ -919,26 +919,34 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setDraftError(null);
     setAnalyzing(true);
     try {
+      let prepared = draft;
       try {
-        await persistDraftToApi(draft, "update");
+        const result = await persistDraftToApi(draft, "update");
+        prepared = result.prepared;
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         // Seeded posts (e.g. note-taker) may not exist in Supabase yet.
         if (/not found|404/i.test(message)) {
-          await persistDraftToApi(draft, "create");
+          const result = await persistDraftToApi(draft, "create");
+          prepared = result.prepared;
         } else if (/not configured|503/i.test(message)) {
           savePostEdit(draft);
+          prepared = draft;
         } else {
           throw error;
         }
       }
-      savePostEdit(draft);
+      savePostEdit(prepared);
       window.dispatchEvent(
         new CustomEvent("workbench-post-edited", {
           detail: { postId: editPostId },
         }),
       );
       closeFlow();
+      // Ensure the open project page picks up Supabase changes.
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 50);
     } catch (error) {
       setDraftError(
         error instanceof Error ? error.message : "Could not save post",

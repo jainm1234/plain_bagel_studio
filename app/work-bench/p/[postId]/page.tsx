@@ -29,7 +29,7 @@ export default async function WorkbenchPostPage({ params }: Props) {
     <WorkbenchProjectView
       author={{ id: row.author_id, handle: row.author_handle }}
       draft={draftFromRecord(row)}
-      useLocalEdits={false}
+      useLocalEdits
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import NoteTakerSchematic from "@/components/NoteTakerSchematic";
 import WorkbenchProjectShell from "@/components/WorkbenchProjectShell";
 import WorkbenchSchematic from "@/components/WorkbenchSchematic";
@@ -13,7 +13,7 @@ import {
 type Props = {
   author: { id: string; handle: string };
   draft: WorkbenchPostDraft;
-  /** Merge localStorage overlays (seeded posts). Default true. */
+  /** Prefer localStorage overlays when present. Default true. */
   useLocalEdits?: boolean;
 };
 
@@ -32,35 +32,59 @@ function scriptDownloadHref(path: string, content: string) {
   return URL.createObjectURL(blob);
 }
 
+async function fetchRemoteDraft(postId: string) {
+  try {
+    const response = await fetch(`/api/posts/${encodeURIComponent(postId)}`);
+    if (!response.ok) return null;
+    const data = (await response.json()) as {
+      draft?: WorkbenchPostDraft;
+      author?: { id: string; handle: string };
+    };
+    return data.draft?.postId ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function WorkbenchProjectView({
-  author,
+  author: initialAuthor,
   draft: initialDraft,
   useLocalEdits = true,
 }: Props) {
+  const [author, setAuthor] = useState(initialAuthor);
   const [draft, setDraft] = useState(initialDraft);
 
-  useEffect(() => {
-    setDraft(initialDraft);
-  }, [initialDraft]);
+  const refresh = useCallback(async () => {
+    const remote = await fetchRemoteDraft(initialDraft.postId);
+    let next = initialDraft;
+    if (remote?.draft) {
+      next = mergePostDraft(initialDraft, remote.draft);
+      if (remote.author) setAuthor(remote.author);
+    }
+    if (useLocalEdits) {
+      next = mergePostDraft(next, getPostEdit(initialDraft.postId));
+    }
+    setDraft(next);
+  }, [initialDraft, useLocalEdits]);
 
   useEffect(() => {
-    if (!useLocalEdits) return;
-    function refresh() {
-      setDraft(mergePostDraft(initialDraft, getPostEdit(initialDraft.postId)));
-    }
-    refresh();
+    setAuthor(initialAuthor);
+    setDraft(initialDraft);
+    void refresh();
+  }, [initialAuthor, initialDraft, refresh]);
+
+  useEffect(() => {
     function onEdited(event: Event) {
       const postId = (event as CustomEvent<{ postId: string }>).detail?.postId;
       if (postId && postId !== initialDraft.postId) return;
-      refresh();
+      void refresh();
     }
     window.addEventListener("workbench-post-edited", onEdited);
-    window.addEventListener("storage", refresh);
+    window.addEventListener("storage", () => void refresh());
     return () => {
       window.removeEventListener("workbench-post-edited", onEdited);
-      window.removeEventListener("storage", refresh);
     };
-  }, [initialDraft, useLocalEdits]);
+  }, [initialDraft.postId, refresh]);
 
   const materials = draft.parts.filter((part) => part.name.trim());
   const steps = draft.steps.filter(
@@ -240,7 +264,10 @@ export default function WorkbenchProjectView({
                 ? `/projects/note-taker/${name}`
                 : scriptDownloadHref(script.path, script.content);
             return (
-              <div key={`${script.path}-${index}`} className="workbench-project-script">
+              <div
+                key={`${script.path}-${index}`}
+                className="workbench-project-script"
+              >
                 <div className="workbench-project-script-head">
                   <h3 className="workbench-project-subheading">
                     <span className="workbench-project-step-num">
@@ -248,7 +275,11 @@ export default function WorkbenchProjectView({
                     </span>
                     {name}
                   </h3>
-                  <a className="workbench-project-link" href={href} download={name}>
+                  <a
+                    className="workbench-project-link"
+                    href={href}
+                    download={name}
+                  >
                     download{ext}
                   </a>
                 </div>

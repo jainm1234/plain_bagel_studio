@@ -82,7 +82,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
     if (existing.author_id !== author.id) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      const sameHandle =
+        existing.author_handle.replace(/[._-]/g, "").toLowerCase() ===
+        author.handle.replace(/[._-]/g, "").toLowerCase();
+      if (!sameHandle) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
     }
 
     const body = (await request.json()) as Partial<WorkbenchPostInput>;
@@ -98,7 +103,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       schematics: body.schematics || existing.schematics,
       files: body.files || existing.files,
       author: {
-        id: existing.author_id,
+        id: author.id,
         handle: author.handle || existing.author_handle,
       },
     };

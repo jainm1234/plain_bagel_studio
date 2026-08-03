@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import fs from "fs";
 import path from "path";
-import NoteTakerProjectView from "@/components/NoteTakerProjectView";
+import WorkbenchProjectView from "@/components/WorkbenchProjectView";
 import { amazonSearchUrl } from "@/lib/reverseEngineer";
 import type { WorkbenchPostDraft } from "@/lib/workbenchPostEdits";
 
@@ -187,7 +187,7 @@ function buildNoteTakerDraft(): WorkbenchPostDraft {
 export default function NoteTakerPage() {
   const draft = buildNoteTakerDraft();
   return (
-    <NoteTakerProjectView
+    <WorkbenchProjectView
       author={{ id: "wb_malvika", handle: "malvika.jain" }}
       draft={draft}
     />
