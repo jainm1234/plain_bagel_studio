@@ -15,7 +15,7 @@ export const WORKBENCH_PROJECTS: WorkbenchProject[] = [
       "a hold-to-talk notebook that lives on an esp32. press the button, speak your thought, let go. recordings sync over bluetooth (or usb) into a tiny web app that transcribes them for you.",
     socialLink: "https://www.instagram.com/p/DaA2b_IRjB3/",
     tags: ["#esp32", "#audio", "#bluetooth"],
-    author: { id: "wb_malvika", handle: "malvika" },
+    author: { id: "wb_malvika", handle: "malvika.jain" },
     updatedAt: "2026-08-01",
   },
 ];
@@ -23,7 +23,7 @@ export const WORKBENCH_PROJECTS: WorkbenchProject[] = [
 export const WORKBENCH_PROFILES: WorkbenchPublicProfile[] = [
   {
     id: "wb_malvika",
-    handle: "malvika",
+    handle: "malvika.jain",
     displayName: "malvika",
   },
 ];

@@ -10,6 +10,8 @@ export type WorkbenchPostStep = {
   id: string;
   title: string;
   details: string[];
+  imageUrl?: string | null;
+  videoUrl?: string | null;
 };
 
 export type WorkbenchPostSchematic = {
@@ -35,6 +37,7 @@ export type WorkbenchPostDraft = {
   lead: string;
   postHtml: string;
   socialLink: string;
+  coverImage?: string | null;
   parts: WorkbenchPostPart[];
   steps: WorkbenchPostStep[];
   schematics: WorkbenchPostSchematic[];
@@ -93,7 +96,33 @@ export function isPostOwner(
 ) {
   if (!user || !author) return false;
   if (user.id === author.id) return true;
-  return user.handle.toLowerCase() === author.handle.toLowerCase();
+  const userHandle = user.handle.toLowerCase();
+  const authorHandle = author.handle.toLowerCase();
+  if (userHandle === authorHandle) return true;
+  const userKey = userHandle.replace(/[._-]/g, "");
+  const authorKey = authorHandle.replace(/[._-]/g, "");
+  if (userKey && userKey === authorKey) return true;
+  // Seeded Work Bench posts for the studio account.
+  if (author.id === "wb_malvika" || authorKey === "malvikajain") {
+    return userKey === "malvikajain" || userHandle === "malvika";
+  }
+  return false;
+}
+
+export function displayAuthorHandle(
+  user: { id: string; handle: string } | null | undefined,
+  author: { id: string; handle: string } | null | undefined,
+) {
+  if (!author) return "";
+  // Own posts always use the live Workbench username so cards match the account.
+  if (user && isPostOwner(user, author) && user.handle.trim()) {
+    return user.handle;
+  }
+  return author.handle.trim();
+}
+
+export function postHref(postId: string) {
+  return `/work-bench/p/${encodeURIComponent(postId)}`;
 }
 
 export function openWorkbenchEditPost(draft: WorkbenchPostDraft) {

@@ -20,42 +20,35 @@ const materials = [
   {
     name: "esp32-s3 sense",
     note: "with pdm mic",
-    src: "/projects/note-taker/materials/esp32.png",
     buy: amazonSearchUrl("Seeed XIAO ESP32S3 Sense"),
   },
   {
     name: "breadboard",
-    src: "/projects/note-taker/materials/breadboard.jpg",
     buy: amazonSearchUrl("solderless breadboard"),
   },
   {
     name: "jumper wires",
     note: "male-to-male",
-    src: "/projects/note-taker/materials/wires.jpg",
     buy: amazonSearchUrl("dupont jumper wires male to male"),
   },
   {
     name: "push button",
     note: "hold to record",
-    src: "/projects/note-taker/materials/button.jpg",
     buy: amazonSearchUrl("tactile push button switch kit"),
   },
   {
     name: "led",
     note: "rec indicator",
-    src: "/projects/note-taker/materials/leds.jpg",
     buy: amazonSearchUrl("5mm LED assortment kit"),
   },
   {
     name: "resistor",
     note: "~220Ω for led",
-    src: "/projects/note-taker/materials/resistors.png",
     buy: amazonSearchUrl("220 ohm resistor assortment"),
   },
   {
     name: "usb cable",
     note: "usb-c",
-    src: "/projects/note-taker/materials/usb.png",
     buy: amazonSearchUrl("USB C cable data"),
   },
 ];
@@ -160,12 +153,12 @@ function buildNoteTakerDraft(): WorkbenchPostDraft {
     lead: LEAD,
     postHtml: `<p>${LEAD}</p>`,
     socialLink: REEL_URL,
+    coverImage: null,
     parts: materials.map((item, index) => ({
       id: `mat-${index + 1}`,
       name: item.name,
       note: "note" in item ? item.note : undefined,
       buyUrl: item.buy,
-      imageSrc: item.src,
     })),
     steps: steps.map((step, index) => ({
       id: `step-${index + 1}`,
@@ -195,12 +188,8 @@ export default function NoteTakerPage() {
   const draft = buildNoteTakerDraft();
   return (
     <NoteTakerProjectView
-      author={{ id: "wb_malvika", handle: "malvika" }}
+      author={{ id: "wb_malvika", handle: "malvika.jain" }}
       draft={draft}
-      materialImages={materials.map((item) => ({
-        name: item.name,
-        src: item.src,
-      }))}
     />
   );
 }

@@ -1373,7 +1373,8 @@ a:hover {
 }
 
 .workbench-topbar-actions .workbench-submit-link,
-.workbench-topbar-actions .workbench-account-trigger {
+.workbench-topbar-actions .workbench-account-trigger,
+.workbench-topbar-actions .workbench-topbar-edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1388,11 +1389,14 @@ a:hover {
   letter-spacing: 0.02em;
   line-height: 1.4;
   box-sizing: border-box;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .workbench-topbar-actions .workbench-submit-link:hover,
 .workbench-topbar-actions .workbench-account-trigger:hover,
-.workbench-topbar-actions .workbench-account-trigger.is-open {
+.workbench-topbar-actions .workbench-account-trigger.is-open,
+.workbench-topbar-actions .workbench-topbar-edit:hover {
   background: #000;
   color: #fff;
 }
@@ -1466,11 +1470,20 @@ a:hover {
   padding: 0.55rem 0.7rem 0.15rem;
   font-size: 12px;
   line-height: 1.4;
+  color: #111;
+  word-break: break-word;
+}
+
+.workbench-account-meta-label {
+  display: block;
+  margin-bottom: 0.1rem;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: #777;
 }
 
 .workbench-account-meta + .workbench-account-meta {
-  padding-top: 0;
+  padding-top: 0.25rem;
   padding-bottom: 0.45rem;
 }
 
@@ -1776,13 +1789,14 @@ a:hover {
 
 .workbench-card-image {
   display: block;
-  aspect-ratio: 1;
+  aspect-ratio: auto;
   width: 100%;
   overflow: hidden;
   background: var(--wb-soft);
 }
 
 .workbench-card-image--placeholder {
+  aspect-ratio: 1;
   border: 1px solid #e0e0e0;
   background:
     repeating-linear-gradient(
@@ -1801,8 +1815,8 @@ a:hover {
 .workbench-card-img {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
 }
 
 .workbench-card-body {
@@ -1996,6 +2010,22 @@ a:hover {
   color: #777;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.workbench-comment-remove {
+  margin-left: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #999;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workbench-comment-remove:hover {
+  color: #000;
 }
 
 .workbench-comment-form--compact {
@@ -3333,6 +3363,56 @@ ol.workbench-preview-edit-list > li {
   text-underline-offset: 2px;
 }
 
+.workbench-rte-content img,
+.workbench-rte .tiptap img,
+.workbench-inline-image,
+.workbench-project-copy img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.85rem 0;
+  border: 1px solid #e8e8e8;
+  object-fit: contain;
+}
+
+.workbench-rte-content video,
+.workbench-rte .tiptap video,
+.workbench-inline-video,
+.workbench-project-copy video,
+.workbench-step-video,
+.workbench-step-image-preview video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.85rem 0;
+  border: 1px solid #e8e8e8;
+  background: #111;
+  object-fit: contain;
+}
+
+.workbench-step-image,
+.workbench-step-image-preview img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0.55rem 0 0.75rem;
+  border: 1px solid #e8e8e8;
+  object-fit: contain;
+}
+
+.workbench-step-video {
+  margin: 0.55rem 0 0.75rem;
+}
+
+.workbench-step-image-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .workbench-rte-content p.is-editor-empty:first-child::before,
 .workbench-rte .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -3649,6 +3729,57 @@ ol.workbench-preview-edit-list > li {
 
 .workbench-project-head {
   margin-bottom: 2.5rem;
+}
+
+.workbench-project-cover {
+  display: block;
+  width: auto;
+  max-width: 14rem;
+  height: auto;
+  max-height: 14rem;
+  margin: 0 0 1.25rem;
+  object-fit: contain;
+  border: 1px solid #e8e8e8;
+  background: #f3f3f3;
+}
+
+.workbench-project-cover--embed {
+  max-height: 14rem;
+  max-width: 14rem;
+  padding: 0;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+}
+
+.workbench-project-cover--embed iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.workbench-project-cover--empty {
+  width: 14rem;
+  min-height: 8rem;
+  border-style: dashed;
+  border-color: #ccc;
+}
+
+.workbench-cover-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.workbench-cover-preview img {
+  display: block;
+  width: auto;
+  max-width: 10rem;
+  height: auto;
+  max-height: 10rem;
+  object-fit: contain;
+  border: 1px solid #e8e8e8;
 }
 
 .workbench-project-title {
@@ -4044,6 +4175,26 @@ ol.workbench-preview-edit-list > li {
   text-underline-offset: 2px;
 }
 
+.workbench-project-edit {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wb-muted);
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.workbench-project-edit:hover {
+  color: #000;
+}
+
 .workbench-project-toc {
   display: flex;
   flex-wrap: wrap;
@@ -4278,7 +4429,7 @@ ol.workbench-preview-edit-list > li {
 
 .workbench-project-material {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(4.5rem, 5.5rem) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: center;
   padding-bottom: 1rem;
@@ -4624,11 +4775,11 @@ ol.workbench-preview-edit-list > li {
   }
 
   .workbench-project-material {
-    grid-template-columns: minmax(0, 1fr) minmax(3.5rem, 4.5rem);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .workbench-project-material-buy {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .workbench-grid {

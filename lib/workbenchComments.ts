@@ -9,12 +9,47 @@ export type WorkbenchComment = {
 
 const STORAGE_KEY = "workbench.comments.v1";
 
+function handleKey(value: string) {
+  return value.trim().toLowerCase().replace(/[._-]/g, "");
+}
+
+/** Fix stale handles like "malvikajain" → "malvika.jain". */
+export function normalizeAuthorHandle(handle: string) {
+  const trimmed = handle.trim();
+  if (!trimmed) return trimmed;
+  const key = handleKey(trimmed);
+  if (key === "malvikajain") return "malvika.jain";
+  return trimmed;
+}
+
 function readAll(): WorkbenchComment[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as WorkbenchComment[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    let changed = false;
+    const next = parsed
+      .filter((comment) => {
+        // Drop accidental one-off test comment from the feed.
+        if (comment.body.trim().toLowerCase() === "wqr") {
+          changed = true;
+          return false;
+        }
+        return true;
+      })
+      .map((comment) => {
+        const authorHandle = normalizeAuthorHandle(comment.authorHandle || "");
+        if (authorHandle !== comment.authorHandle) {
+          changed = true;
+          return { ...comment, authorHandle };
+        }
+        return comment;
+      });
+
+    if (changed) writeAll(next);
+    return next;
   } catch {
     return [];
   }
@@ -31,6 +66,12 @@ export function getCommentsForPost(postId: string) {
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
+}
+
+export function deleteComment(commentId: string) {
+  const next = readAll().filter((comment) => comment.id !== commentId);
+  writeAll(next);
+  return next;
 }
 
 export function addComment(input: {
@@ -50,7 +91,7 @@ export function addComment(input: {
     postId: input.postId,
     body,
     authorId: input.authorId,
-    authorHandle: input.authorHandle,
+    authorHandle: normalizeAuthorHandle(input.authorHandle),
     createdAt: new Date().toISOString(),
   };
 

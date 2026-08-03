@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import WorkbenchAccount from "@/components/WorkbenchAccount";
 import WorkbenchProjectCard from "@/components/WorkbenchProjectCard";
+import type { WorkbenchProject } from "@/components/WorkbenchFeed";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import {
   getProjectsByAuthor,
@@ -20,22 +21,46 @@ export default function WorkbenchProfilePage() {
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [saved, setSaved] = useState(false);
+  const [dbPosts, setDbPosts] = useState<WorkbenchProject[]>([]);
 
   const publicProfile = useMemo(() => getPublicProfile(id), [id]);
-  const posts = useMemo(() => getProjectsByAuthor(id), [id]);
+  const seededPosts = useMemo(() => getProjectsByAuthor(id), [id]);
+  const posts = useMemo(() => {
+    const seen = new Set(seededPosts.map((project) => project.href));
+    return [
+      ...seededPosts,
+      ...dbPosts.filter((project) => !seen.has(project.href)),
+    ];
+  }, [seededPosts, dbPosts]);
 
   const profileHandle = isSelf
     ? user?.handle
-    : publicProfile?.handle;
-  const profileName = isSelf
-    ? user?.displayName || user?.handle
-    : publicProfile?.displayName || publicProfile?.handle;
+    : publicProfile?.handle || dbPosts[0]?.author?.handle;
 
   useEffect(() => {
     if (!user || !isSelf) return;
     setHandle(user.handle);
     setDisplayName(user.displayName);
   }, [user, isSelf]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/posts")
+      .then((response) => response.json())
+      .then((data: { posts?: WorkbenchProject[] }) => {
+        if (cancelled) return;
+        const mine = (data.posts || []).filter(
+          (project) => project.author?.id === id,
+        );
+        setDbPosts(mine);
+      })
+      .catch(() => {
+        if (!cancelled) setDbPosts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   function onSave(event: FormEvent) {
     event.preventDefault();
@@ -60,14 +85,6 @@ export default function WorkbenchProfilePage() {
           <h1 className="workbench-project-title">
             {profileHandle || "profile"}
           </h1>
-          <p className="workbench-project-lead">
-            {profileName && profileName !== profileHandle
-              ? profileName
-              : isSelf
-                ? "your work bench account"
-                : "work bench user"}
-          </p>
-          <p className="workbench-project-copy">user id · {id}</p>
         </header>
 
         {!ready ? (
@@ -75,7 +92,7 @@ export default function WorkbenchProfilePage() {
         ) : isSelf && user ? (
           <form className="workbench-profile-form" onSubmit={onSave}>
             <label className="workbench-flow-label" htmlFor="display-name">
-              display name
+              name
             </label>
             <input
               id="display-name"
@@ -94,9 +111,9 @@ export default function WorkbenchProfilePage() {
               onChange={(event) => setHandle(event.target.value)}
             />
 
-            <p className="workbench-project-copy">
-              signed in with {user.provider}
-            </p>
+            {user.email ? (
+              <p className="workbench-project-copy">{user.email}</p>
+            ) : null}
 
             <div className="workbench-flow-actions">
               <button className="workbench-submit-button" type="submit">
@@ -124,7 +141,7 @@ export default function WorkbenchProfilePage() {
           {posts.length > 0 ? (
             <div className="workbench-grid">
               {posts.map((project) => (
-                <WorkbenchProjectCard key={project.title} {...project} />
+                <WorkbenchProjectCard key={project.href} {...project} />
               ))}
             </div>
           ) : (

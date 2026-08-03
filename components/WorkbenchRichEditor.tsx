@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ChangeEvent, type ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
+import { Video } from "@/components/WorkbenchVideoExtension";
 
 type Props = {
   value: string;
@@ -116,6 +118,37 @@ function RedoIcon() {
   );
 }
 
+function readFileAsDataUrl(file: File, kind: "image" | "video") {
+  return new Promise<string | null>((resolve) => {
+    if (!file.type.startsWith(`${kind}/`)) {
+      resolve(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : null);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function insertMediaFiles(
+  editor: NonNullable<ReturnType<typeof useEditor>>,
+  files: FileList | File[],
+) {
+  const list = Array.from(files);
+  for (const file of list) {
+    if (file.type.startsWith("image/")) {
+      const src = await readFileAsDataUrl(file, "image");
+      if (src) editor.chain().focus().setImage({ src }).run();
+    } else if (file.type.startsWith("video/")) {
+      const src = await readFileAsDataUrl(file, "video");
+      if (src) editor.chain().focus().setVideo({ src }).run();
+    }
+  }
+}
+
 export default function WorkbenchRichEditor({
   value,
   onChange,
@@ -125,6 +158,10 @@ export default function WorkbenchRichEditor({
   canUndo = false,
   canRedo = false,
 }: Props) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -133,6 +170,13 @@ export default function WorkbenchRichEditor({
         undoRedo: false,
       }),
       Underline,
+      Image.configure({
+        allowBase64: true,
+        HTMLAttributes: {
+          class: "workbench-inline-image",
+        },
+      }),
+      Video,
       DownloadLink.configure({
         openOnClick: false,
         protocols: ["http", "https", "mailto", "tel", "data"],
@@ -151,9 +195,36 @@ export default function WorkbenchRichEditor({
         class: "workbench-rte-content workbench-rte-content--project",
         spellcheck: "true",
       },
+      handlePaste: (_view, event) => {
+        const current = editorRef.current;
+        const files = event.clipboardData?.files;
+        if (!files?.length || !current) return false;
+        const media = Array.from(files).filter(
+          (file) =>
+            file.type.startsWith("image/") || file.type.startsWith("video/"),
+        );
+        if (!media.length) return false;
+        event.preventDefault();
+        void insertMediaFiles(current, media);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const current = editorRef.current;
+        const files = event.dataTransfer?.files;
+        if (!files?.length || !current) return false;
+        const media = Array.from(files).filter(
+          (file) =>
+            file.type.startsWith("image/") || file.type.startsWith("video/"),
+        );
+        if (!media.length) return false;
+        event.preventDefault();
+        void insertMediaFiles(current, media);
+        return true;
+      },
     },
   });
 
+  editorRef.current = editor;
   useEffect(() => {
     if (!editor) return;
     const current = editor.getHTML();
@@ -177,6 +248,20 @@ export default function WorkbenchRichEditor({
       return;
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+  }
+
+  async function onImagePicked(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !editor) return;
+    await insertMediaFiles(editor, [file]);
+  }
+
+  async function onVideoPicked(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !editor) return;
+    await insertMediaFiles(editor, [file]);
   }
 
   return (
@@ -281,6 +366,16 @@ export default function WorkbenchRichEditor({
           onClick={setLink}
         />
         <ToolbarButton
+          label="image"
+          title="Add image"
+          onClick={() => imageInputRef.current?.click()}
+        />
+        <ToolbarButton
+          label="video"
+          title="Add video"
+          onClick={() => videoInputRef.current?.click()}
+        />
+        <ToolbarButton
           label="clear"
           title="Clear formatting"
           onClick={() =>
@@ -288,6 +383,22 @@ export default function WorkbenchRichEditor({
           }
         />
       </div>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="workbench-sr-only"
+        onChange={onImagePicked}
+        aria-label="Upload image"
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        className="workbench-sr-only"
+        onChange={onVideoPicked}
+        aria-label="Upload video"
+      />
       <EditorContent editor={editor} />
     </div>
   );

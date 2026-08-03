@@ -3,9 +3,14 @@
 import WorkbenchAccount from "@/components/WorkbenchAccount";
 import WorkbenchComments from "@/components/WorkbenchComments";
 import EditPostButton from "@/components/EditPostButton";
+import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { WorkbenchPostDraft } from "@/lib/workbenchPostEdits";
+import {
+  displayAuthorHandle,
+  type WorkbenchPostDraft,
+} from "@/lib/workbenchPostEdits";
+import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 
 function socialLabel(url: string) {
   try {
@@ -29,6 +34,7 @@ type Props = {
   title: string;
   lead?: string;
   socialLink?: string;
+  coverImage?: string | null;
   postId?: string;
   editDraft?: WorkbenchPostDraft;
 };
@@ -39,9 +45,13 @@ export default function WorkbenchProjectShell({
   title,
   lead,
   socialLink,
+  coverImage,
   postId,
   editDraft,
 }: Props) {
+  const { user } = useWorkbenchAuth();
+  const authorHandle = displayAuthorHandle(user, author);
+
   return (
     <main className="workbench-site">
       <div className="workbench-topbar">
@@ -50,7 +60,11 @@ export default function WorkbenchProjectShell({
         </Link>
         <div className="workbench-topbar-actions">
           {editDraft ? (
-            <EditPostButton author={author} draft={editDraft} />
+            <EditPostButton
+              author={author}
+              draft={editDraft}
+              className="workbench-topbar-edit"
+            />
           ) : null}
           <WorkbenchAccount />
         </div>
@@ -58,6 +72,11 @@ export default function WorkbenchProjectShell({
 
       <article className="workbench-project">
         <header className="workbench-project-head">
+          <WorkbenchProjectCover
+            coverImage={coverImage}
+            socialLink={socialLink}
+            title={`${title} cover`}
+          />
           <h1 className="workbench-project-title">
             {title}
             {author ? (
@@ -68,7 +87,7 @@ export default function WorkbenchProjectShell({
                   href={`/work-bench/u/${author.id}`}
                   className="workbench-project-author"
                 >
-                  {author.handle}
+                  {authorHandle}
                 </Link>
               </>
             ) : null}
@@ -88,26 +107,6 @@ export default function WorkbenchProjectShell({
             ) : null}
           </h1>
           {lead ? <p className="workbench-project-lead">{lead}</p> : null}
-          {socialLink && /instagram\.com/i.test(socialLink) ? (
-            <div className="workbench-project-reel workbench-project-reel--under-subtitle">
-              <iframe
-                src={`${socialLink.replace(/\/$/, "")}/embed`}
-                title={`${title} social embed`}
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                allowFullScreen
-                loading="lazy"
-              />
-            </div>
-          ) : socialLink ? (
-            <a
-              className="workbench-project-link"
-              href={socialLink}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              open on {socialLabel(socialLink)}
-            </a>
-          ) : null}
         </header>
         {children}
         {postId ? <WorkbenchComments postId={postId} /> : null}

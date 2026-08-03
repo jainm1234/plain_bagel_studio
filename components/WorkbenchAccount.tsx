@@ -56,9 +56,19 @@ export default function WorkbenchAccount() {
       {open ? (
         <div className="workbench-account-menu" role="menu">
           <p className="workbench-account-meta">
-            signed in with {user.provider}
+            <span className="workbench-account-meta-label">name</span>
+            {user.displayName}
           </p>
-          <p className="workbench-account-meta">id · {user.id}</p>
+          <p className="workbench-account-meta">
+            <span className="workbench-account-meta-label">username</span>
+            {user.handle}
+          </p>
+          {user.email ? (
+            <p className="workbench-account-meta">
+              <span className="workbench-account-meta-label">email</span>
+              {user.email}
+            </p>
+          ) : null}
           <Link
             href={`/work-bench/u/${user.id}`}
             className="workbench-account-option"

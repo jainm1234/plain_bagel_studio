@@ -26,9 +26,11 @@ import WorkbenchRichEditor, {
   socialHostLabel,
   withSocialInPostHtml,
 } from "@/components/WorkbenchRichEditor";
+import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import {
   openWorkbenchSubmit,
+  postHref,
   savePostEdit,
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
@@ -84,6 +86,8 @@ type StepItem = {
   id: string;
   title: string;
   details: string[];
+  imageUrl?: string | null;
+  videoUrl?: string | null;
 };
 
 type RelatedProject = {
@@ -226,7 +230,7 @@ const STEP_TITLE: Record<WizardStep, string> = {
 
 const STEP_BLURB: Record<WizardStep, string> = {
   code: "Upload files or paste code. Optional social link helps the draft.",
-  header: "Title and subtitle.",
+  header: "Title, subtitle, social link, and cover.",
   description: "Write what the project is. Changes show in the preview.",
   materials: "Optional — skip if you don't need a parts list.",
   howto: "Optional — skip if you don't need build steps.",
@@ -404,6 +408,7 @@ type DocSnapshot = {
   related: RelatedProject[];
   lead: string;
   postHtml: string;
+  coverImage: string | null;
   parts: PartItem[];
   steps: StepItem[];
   schematics: SchematicItem[];
@@ -415,6 +420,7 @@ const EMPTY_DOC: DocSnapshot = {
   related: [],
   lead: "",
   postHtml: "",
+  coverImage: null,
   parts: [],
   steps: [],
   schematics: [],
@@ -451,6 +457,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const [schematics, setSchematics] = useState<SchematicItem[]>([]);
   const [lead, setLead] = useState("");
   const [postHtml, setPostHtml] = useState("");
+  const [coverImage, setCoverImage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
@@ -495,6 +502,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       related,
       lead,
       postHtml,
+      coverImage,
       parts,
       steps,
       schematics,
@@ -508,6 +516,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setRelated(snapshot.related);
     setLead(snapshot.lead);
     setPostHtml(snapshot.postHtml);
+    setCoverImage(snapshot.coverImage ?? null);
     setParts(snapshot.parts);
     setSteps(snapshot.steps);
     setSchematics(snapshot.schematics);
@@ -667,6 +676,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     related,
     lead,
     postHtml,
+    coverImage,
     parts,
     steps,
     schematics,
@@ -704,6 +714,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setSchematics([]);
     setLead("");
     setPostHtml("");
+    setCoverImage(null);
     setAnalyzing(false);
     setDraftError(null);
     setDraggingFiles(false);
@@ -728,6 +739,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       related: [],
       lead: draft.lead,
       postHtml: draft.postHtml,
+      coverImage: draft.coverImage ?? null,
       parts: draft.parts.map((part) => ({
         id: part.id,
         name: part.name,
@@ -738,6 +750,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         id: stepItem.id,
         title: stepItem.title,
         details: stepItem.details.length ? stepItem.details : [""],
+        imageUrl: stepItem.imageUrl ?? null,
+        videoUrl: stepItem.videoUrl ?? null,
       })),
       schematics: draft.schematics.map((item) => ({
         id: item.id,
@@ -769,20 +783,14 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setOpen(true);
   }
 
-  function saveEdit() {
-    if (!editPostId) return;
-    if (!user) {
-      pendingSubmitRef.current = true;
-      openLogin("log in to save your edits");
-      return;
-    }
-    pendingSubmitRef.current = false;
-    const draft: WorkbenchPostDraft = {
-      postId: editPostId,
+  function buildDraft(postId: string): WorkbenchPostDraft {
+    return {
+      postId,
       projectName: projectName.trim() || "untitled project",
       lead,
       postHtml,
       socialLink,
+      coverImage,
       parts: parts.map((part) => ({
         id: part.id,
         name: part.name,
@@ -793,6 +801,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         id: item.id,
         title: item.title,
         details: item.details,
+        imageUrl: item.imageUrl ?? null,
+        videoUrl: item.videoUrl ?? null,
       })),
       schematics: schematics.map((item) => ({
         id: item.id,
@@ -810,11 +820,139 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         content: script.content,
       })),
     };
-    savePostEdit(draft);
-    window.dispatchEvent(
-      new CustomEvent("workbench-post-edited", { detail: { postId: editPostId } }),
-    );
-    closeFlow();
+  }
+
+  async function persistDraftToApi(
+    draft: WorkbenchPostDraft,
+    mode: "create" | "update",
+  ) {
+    const payload = {
+      postId: draft.postId !== "new" ? draft.postId : undefined,
+      projectName: draft.projectName,
+      lead: draft.lead,
+      postHtml: draft.postHtml,
+      socialLink: draft.socialLink,
+      coverImage: draft.coverImage ?? null,
+      parts: draft.parts,
+      steps: draft.steps,
+      schematics: draft.schematics,
+      files: draft.files,
+    };
+
+    const url =
+      mode === "update"
+        ? `/api/posts/${encodeURIComponent(draft.postId)}`
+        : "/api/posts";
+    const response = await fetch(url, {
+      method: mode === "update" ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      post?: { href?: string };
+      draft?: { id?: string };
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || `Could not ${mode} post (${response.status})`);
+    }
+
+    return data;
+  }
+
+  async function saveEdit() {
+    if (!editPostId) return;
+    if (!user) {
+      pendingSubmitRef.current = true;
+      openLogin("log in to save your edits");
+      return;
+    }
+    pendingSubmitRef.current = false;
+    const draft = buildDraft(editPostId);
+    setDraftError(null);
+    setAnalyzing(true);
+    try {
+      try {
+        await persistDraftToApi(draft, "update");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        // Seeded posts (e.g. note-taker) may not exist in Supabase yet.
+        if (/not found|404/i.test(message)) {
+          await persistDraftToApi(draft, "create");
+        } else if (/not configured|503/i.test(message)) {
+          savePostEdit(draft);
+        } else {
+          throw error;
+        }
+      }
+      savePostEdit(draft);
+      window.dispatchEvent(
+        new CustomEvent("workbench-post-edited", {
+          detail: { postId: editPostId },
+        }),
+      );
+      closeFlow();
+    } catch (error) {
+      setDraftError(
+        error instanceof Error ? error.message : "Could not save post",
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function submitVerified() {
+    if (!user) {
+      pendingSubmitRef.current = true;
+      openLogin("log in to submit your project");
+      return;
+    }
+    pendingSubmitRef.current = false;
+
+    const title =
+      projectName.trim() ||
+      related[0]?.title ||
+      "untitled project";
+    if (!projectName.trim()) setProjectName(title);
+    if (!result) {
+      setResult({
+        projectName: title,
+        summary: "",
+        materials: [],
+        steps: [],
+        schematic: null,
+      });
+    }
+
+    const draft = buildDraft("new");
+    draft.projectName = title;
+    setDraftError(null);
+    setAnalyzing(true);
+    try {
+      const data = await persistDraftToApi(draft, "create");
+      const savedId =
+        data.draft?.id ||
+        (data.post?.href ? data.post.href.split("/").pop() : "") ||
+        "";
+      if (savedId) {
+        savePostEdit({ ...draft, postId: decodeURIComponent(savedId) });
+      }
+      setStep("done");
+      window.setTimeout(() => {
+        window.location.href =
+          data.post?.href || postHref(decodeURIComponent(savedId));
+      }, 400);
+    } catch (error) {
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "Could not submit project. Check Supabase setup.",
+      );
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   useEffect(() => {
@@ -1175,6 +1313,45 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     reader.readAsDataURL(file);
   }
 
+  function onCoverImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (!dataUrl) return;
+      setCoverImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onStepImageUpload(id: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (!dataUrl) return;
+      updateStep(id, { imageUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onStepVideoUpload(id: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type.startsWith("video/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (!dataUrl) return;
+      updateStep(id, { videoUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  }
+
   function updatePart(id: string, patch: Partial<PartItem>) {
     setParts((current) =>
       current.map((part) => {
@@ -1237,100 +1414,11 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }, 0);
   }
 
-  function submitVerified() {
-    if (!user) {
-      pendingSubmitRef.current = true;
-      openLogin("log in to submit your project");
-      return;
-    }
-    pendingSubmitRef.current = false;
-
-    const title =
-      projectName.trim() ||
-      related[0]?.title ||
-      "untitled project";
-    if (!projectName.trim()) setProjectName(title);
-    if (!result) {
-      setResult({
-        projectName: title,
-        summary: "",
-        materials: [],
-        steps: [],
-        schematic: null,
-      });
-    }
-
-    const summary = postHtml.trim() || lead.trim() || result?.summary || "";
-
-    const body = [
-      `project: ${title}`,
-      `author: ${user.handle}`,
-      `social: ${socialLink.trim() || "none"}`,
-      `related: ${
-        related.length
-          ? related
-              .map(
-                (project) =>
-                  `${project.title}${project.authorHandle ? ` by ${project.authorHandle}` : ""} (${project.href})`,
-              )
-              .join("; ")
-          : "none"
-      }`,
-      `files: ${
-        files.length
-          ? files.map((file) => file.path).join(", ")
-          : paste.trim()
-            ? "pasted code"
-            : "none"
-      }`,
-      "",
-      "SUBTITLE",
-      lead.trim() || "none",
-      "",
-      "DESCRIPTION",
-      summary || "none",
-      "",
-      "MATERIALS",
-      ...(parts.length
-        ? parts.map(
-            (part) =>
-              `- ${part.name}${part.note ? ` (${part.note})` : ""} · ${part.buyUrl}`,
-          )
-        : ["- none"]),
-      "",
-      "STEPS",
-      ...(steps.length
-        ? steps.map(
-            (item, index) =>
-              `${index + 1}. ${item.title}\n${item.details.map((d) => `   - ${d}`).join("\n")}`,
-          )
-        : ["- none"]),
-      "",
-      "SCHEMATIC",
-      ...(schematics.length
-        ? schematics.map((item, index) => {
-            const heading = `--- schematic ${index + 1} (${item.source}) ---`;
-            if (item.imageUrl) {
-              return `${heading}\nuploaded image (data url omitted from email)`;
-            }
-            return `${heading}\n${item.boardLabel}`;
-          })
-        : ["- none"]),
-      "",
-      "CODE",
-      code.slice(0, 12000) || "none",
-    ].join("\n");
-
-    const subject = encodeURIComponent(`Work bench project: ${title}`);
-    window.location.href = `mailto:malvika.jain@icloud.com?subject=${subject}&body=${encodeURIComponent(body)}`;
-    setStep("done");
-  }
-
   useEffect(() => {
     if (!user || !pendingSubmitRef.current || !open) return;
     pendingSubmitRef.current = false;
-    if (editPostId) saveEdit();
-    else submitVerified();
+    if (editPostId) void saveEdit();
+    else void submitVerified();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after login
   }, [user]);
 
@@ -1352,8 +1440,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       return;
     }
     if (step === "scripts") {
-      if (editPostId) saveEdit();
-      else submitVerified();
+      if (editPostId) void saveEdit();
+      else void submitVerified();
       return;
     }
     const index = STEPPER_STEPS.indexOf(
@@ -1387,7 +1475,9 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   const showSchematic = schematics.length > 0 || step === "schematic";
   const showScripts = scriptList.length > 0 || step === "scripts";
   const showDescription =
-    Boolean(postHtml.replace(/<[^>]+>/g, "").trim()) || step === "description";
+    Boolean(postHtml.replace(/<[^>]+>/g, "").trim()) ||
+    /<(img|video)\b/i.test(postHtml) ||
+    step === "description";
   const previewStepIndex = PREVIEW_STEPS.indexOf(
     step as (typeof PREVIEW_STEPS)[number],
   );
@@ -1438,13 +1528,20 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
             }}
             aria-label="Edit header"
           >
+            <WorkbenchProjectCover
+              coverImage={coverImage}
+              socialLink={socialLink}
+              title="project cover"
+              empty={!coverImage && !socialLink.trim()}
+              onClick={(event) => event.stopPropagation()}
+            />
             <h1 className="workbench-project-title">
               {projectName.trim() || "project title"}
-              {user?.displayName || user?.handle ? (
+              {user?.handle ? (
                 <>
                   {" "}
                   <span className="workbench-project-by">by</span>{" "}
-                  {user.displayName || user.handle}
+                  {user.handle}
                 </>
               ) : null}
               {socialLink.trim() ? (
@@ -1470,32 +1567,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 project subtitle
               </p>
             )}
-            {socialLink.trim() ? (
-              /instagram\.com/i.test(socialLink) ? (
-                <div
-                  className="workbench-project-reel workbench-project-reel--under-subtitle"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <iframe
-                    src={`${socialLink.replace(/\/$/, "")}/embed`}
-                    title="project social embed"
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                    allowFullScreen
-                    loading="lazy"
-                  />
-                </div>
-              ) : (
-                <a
-                  className="workbench-project-link"
-                  href={socialLink.trim()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  open on {socialHostLabel(socialLink)}
-                </a>
-              )
-            ) : null}
           </header>
 
           <nav className="workbench-project-toc" aria-label="Table of contents">
@@ -1535,7 +1606,8 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
               aria-label="Edit description"
             >
               <h2 className="workbench-project-heading">description</h2>
-              {postHtml.replace(/<[^>]+>/g, "").trim() ? (
+              {postHtml.replace(/<[^>]+>/g, "").trim() ||
+              /<(img|video)\b/i.test(postHtml) ? (
                 <div
                   className="workbench-project-copy"
                   dangerouslySetInnerHTML={{ __html: postHtml }}
@@ -1635,7 +1707,9 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
               {steps.some(
                 (item) =>
                   item.title.trim() ||
-                  item.details.some((detail) => detail.trim()),
+                  item.details.some((detail) => detail.trim()) ||
+                  item.imageUrl ||
+                  item.videoUrl,
               ) ? (
                 <ol className="workbench-project-steps">
                   {steps.map((item, index) => (
@@ -1647,6 +1721,24 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                         <h3 className="workbench-project-step-title">
                           {item.title.trim() || "step"}
                         </h3>
+                        {item.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            className="workbench-step-image"
+                            src={item.imageUrl}
+                            alt=""
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        ) : null}
+                        {item.videoUrl ? (
+                          <video
+                            className="workbench-step-video"
+                            src={item.videoUrl}
+                            controls
+                            playsInline
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        ) : null}
                         <ul className="workbench-project-step-details">
                           {item.details
                             .filter((detail) => detail.trim())
@@ -1946,6 +2038,37 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 disabled={analyzing}
               />
             </label>
+            <div className="workbench-flow-field">
+              <span className="workbench-flow-field-label">Cover</span>
+              <p className="workbench-flow-hint">
+                Uses a preview image from your social link when one is set. Or
+                upload a photo instead.
+              </p>
+              {coverImage ? (
+                <div className="workbench-cover-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={coverImage} alt="" />
+                  <button
+                    type="button"
+                    className="workbench-submit-button workbench-submit-button--ghost"
+                    onClick={() => setCoverImage(null)}
+                    disabled={analyzing}
+                  >
+                    use social preview instead
+                  </button>
+                </div>
+              ) : null}
+              <label className="workbench-submit-button workbench-submit-button--ghost">
+                {coverImage ? "replace photo" : "upload photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="workbench-sr-only"
+                  onChange={onCoverImageUpload}
+                  disabled={analyzing}
+                />
+              </label>
+            </div>
           </form>
         ) : null}
 
@@ -2032,6 +2155,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                   }
                   placeholder={`step ${index + 1} title`}
                   aria-label={`Step ${index + 1} title`}
+                  data-step-title={item.id}
                 />
                 <textarea
                   className="workbench-submit-textarea"
@@ -2047,6 +2171,51 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                   placeholder="details…"
                   aria-label={`Step ${index + 1} detail`}
                 />
+                {item.imageUrl ? (
+                  <div className="workbench-step-image-preview">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.imageUrl} alt="" />
+                    <button
+                      type="button"
+                      className="workbench-submit-button workbench-submit-button--ghost"
+                      onClick={() => updateStep(item.id, { imageUrl: null })}
+                    >
+                      remove image
+                    </button>
+                  </div>
+                ) : null}
+                <label className="workbench-submit-button workbench-submit-button--ghost">
+                  {item.imageUrl ? "replace image" : "add image"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="workbench-sr-only"
+                    onChange={(event) => onStepImageUpload(item.id, event)}
+                    aria-label={`Step ${index + 1} image`}
+                  />
+                </label>
+                {item.videoUrl ? (
+                  <div className="workbench-step-image-preview">
+                    <video src={item.videoUrl} controls playsInline />
+                    <button
+                      type="button"
+                      className="workbench-submit-button workbench-submit-button--ghost"
+                      onClick={() => updateStep(item.id, { videoUrl: null })}
+                    >
+                      remove video
+                    </button>
+                  </div>
+                ) : null}
+                <label className="workbench-submit-button workbench-submit-button--ghost">
+                  {item.videoUrl ? "replace video" : "add video"}
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="workbench-sr-only"
+                    onChange={(event) => onStepVideoUpload(item.id, event)}
+                    aria-label={`Step ${index + 1} video`}
+                  />
+                </label>
                 <button
                   type="button"
                   className="workbench-doc-remove"
@@ -2157,12 +2326,15 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
               onChange={(event) => setPaste(event.target.value)}
               aria-label="Paste code"
             />
+            {draftError ? (
+              <p className="workbench-flow-error">{draftError}</p>
+            ) : null}
           </form>
         ) : null}
 
         {step === "done" ? (
           <div className="workbench-flow-form">
-            <p className="workbench-flow-hint">your project was sent.</p>
+            <p className="workbench-flow-hint">saving your project…</p>
           </div>
         ) : null}
       </div>

@@ -18,6 +18,7 @@ export type WorkbenchUser = {
   id: string;
   handle: string;
   displayName: string;
+  email: string;
   provider: AuthProvider;
   createdAt: string;
 };
@@ -45,9 +46,14 @@ function sanitizeHandle(value: string, fallback: string) {
     value
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9_]/g, "")
-      .slice(0, 24) || fallback
+      .replace(/[^a-z0-9._-]/g, "")
+      .replace(/^[._-]+|[._-]+$/g, "")
+      .slice(0, 64) || fallback
   );
+}
+
+function handleKey(value: string) {
+  return value.toLowerCase().replace(/[._-]/g, "");
 }
 
 function providerFromUser(user: ClerkUser): AuthProvider {
@@ -60,30 +66,58 @@ function providerFromUser(user: ClerkUser): AuthProvider {
   return "google";
 }
 
+function oauthUsername(user: ClerkUser) {
+  for (const account of user.externalAccounts) {
+    const username =
+      typeof account.username === "string" ? account.username.trim() : "";
+    if (username) return username;
+  }
+  return "";
+}
+
 function mapClerkUser(user: ClerkUser): WorkbenchUser {
   const metaHandle =
     typeof user.unsafeMetadata?.handle === "string"
-      ? user.unsafeMetadata.handle
+      ? user.unsafeMetadata.handle.trim()
       : "";
   const emailLocal =
     user.primaryEmailAddress?.emailAddress?.split("@")[0] || "";
   const fallback = `user_${user.id.replace(/^user_/, "").slice(0, 8)}`;
-  const handle = sanitizeHandle(
-    metaHandle || user.username || emailLocal || fallback,
-    fallback,
-  );
-  const displayName =
-    user.fullName?.trim() ||
-    user.firstName?.trim() ||
-    (typeof user.unsafeMetadata?.displayName === "string"
+  const emailHandle = emailLocal ? sanitizeHandle(emailLocal, "") : "";
+  const accountHandle =
+    emailHandle ||
+    sanitizeHandle(
+      user.username || oauthUsername(user) || fallback,
+      fallback,
+    );
+  const savedHandle = metaHandle ? sanitizeHandle(metaHandle, "") : "";
+  // Ignore stale saved handles that are just the email username with dots removed
+  // (e.g. "malvikajain" vs "malvika.jain").
+  const savedIsCustom =
+    Boolean(savedHandle) &&
+    handleKey(savedHandle) !== handleKey(accountHandle);
+  const handle = savedIsCustom ? savedHandle : accountHandle;
+
+  const metaDisplay =
+    typeof user.unsafeMetadata?.displayName === "string"
       ? user.unsafeMetadata.displayName.trim()
-      : "") ||
+      : "";
+  const nameFromParts = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const displayName =
+    metaDisplay ||
+    user.fullName?.trim() ||
+    nameFromParts ||
+    user.firstName?.trim() ||
     handle;
 
   return {
     id: user.id,
     handle,
     displayName,
+    email: user.primaryEmailAddress?.emailAddress?.trim() || "",
     provider: providerFromUser(user),
     createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
   };
@@ -101,6 +135,31 @@ export function WorkbenchAuthProvider({ children }: { children: ReactNode }) {
     () => (clerkUser ? mapClerkUser(clerkUser) : null),
     [clerkUser],
   );
+
+  // Keep Clerk metadata aligned with the live Workbench username.
+  useEffect(() => {
+    if (!clerkUser || !user?.handle) return;
+    const saved =
+      typeof clerkUser.unsafeMetadata?.handle === "string"
+        ? clerkUser.unsafeMetadata.handle.trim().toLowerCase()
+        : "";
+    const next = user.handle.toLowerCase();
+    if (saved === next) return;
+    // Overwrite missing, truncated, or punctuation-stripped leftovers.
+    if (
+      saved &&
+      handleKey(saved) !== handleKey(next) &&
+      !(next.startsWith(saved) && next.length > saved.length)
+    ) {
+      return;
+    }
+    void clerkUser.update({
+      unsafeMetadata: {
+        ...clerkUser.unsafeMetadata,
+        handle: user.handle,
+      },
+    });
+  }, [clerkUser, user?.handle]);
 
   useEffect(() => {
     if (user && loginOpen) setLoginOpen(false);

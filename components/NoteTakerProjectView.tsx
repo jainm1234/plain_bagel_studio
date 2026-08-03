@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import NoteTakerSchematic from "@/components/NoteTakerSchematic";
 import WorkbenchProjectShell from "@/components/WorkbenchProjectShell";
 import {
@@ -10,15 +9,9 @@ import {
   type WorkbenchPostDraft,
 } from "@/lib/workbenchPostEdits";
 
-type MaterialImage = {
-  name: string;
-  src: string;
-};
-
 type Props = {
   author: { id: string; handle: string };
   draft: WorkbenchPostDraft;
-  materialImages: MaterialImage[];
 };
 
 function stripHtml(html: string) {
@@ -33,7 +26,6 @@ function stripHtml(html: string) {
 export default function NoteTakerProjectView({
   author,
   draft: initialDraft,
-  materialImages,
 }: Props) {
   const [draft, setDraft] = useState(initialDraft);
 
@@ -55,19 +47,13 @@ export default function NoteTakerProjectView({
     };
   }, [initialDraft]);
 
-  const imageByName = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of materialImages) map.set(item.name, item.src);
-    for (const part of draft.parts) {
-      if (part.imageSrc) map.set(part.name, part.imageSrc);
-    }
-    return map;
-  }, [draft.parts, materialImages]);
-
   const materials = draft.parts.filter((part) => part.name.trim());
   const steps = draft.steps.filter(
     (step) =>
-      step.title.trim() || step.details.some((detail) => detail.trim()),
+      step.title.trim() ||
+      step.details.some((detail) => detail.trim()) ||
+      step.imageUrl ||
+      step.videoUrl,
   );
   const schematics = draft.schematics;
   const scripts = draft.files.filter(
@@ -75,7 +61,8 @@ export default function NoteTakerProjectView({
   );
   const descriptionText =
     stripHtml(draft.postHtml) || draft.lead || initialDraft.lead;
-  const hasDescription = Boolean(descriptionText);
+  const hasDescription =
+    Boolean(descriptionText) || /<(img|video)\b/i.test(draft.postHtml);
 
   const toc = [
     hasDescription ? { label: "description", href: "#description" } : null,
@@ -92,6 +79,7 @@ export default function NoteTakerProjectView({
       author={author}
       lead={draft.lead}
       socialLink={draft.socialLink}
+      coverImage={draft.coverImage}
       postId={draft.postId}
       editDraft={draft}
     >
@@ -124,7 +112,6 @@ export default function NoteTakerProjectView({
           <h2 className="workbench-project-heading">materials</h2>
           <div className="workbench-project-materials">
             {materials.map((item) => {
-              const src = imageByName.get(item.name);
               const buy = item.buyUrl;
               return (
                 <div key={item.id} className="workbench-project-material">
@@ -136,17 +123,6 @@ export default function NoteTakerProjectView({
                       <p className="workbench-project-material-note">
                         {item.note}
                       </p>
-                    ) : null}
-                  </div>
-                  <div className="workbench-project-material-pic">
-                    {src ? (
-                      <Image
-                        src={src}
-                        alt={item.name}
-                        width={400}
-                        height={400}
-                        className="workbench-project-material-img"
-                      />
                     ) : null}
                   </div>
                   {buy ? (
@@ -179,6 +155,22 @@ export default function NoteTakerProjectView({
                 </span>
                 <div>
                   <h3 className="workbench-project-step-title">{step.title}</h3>
+                  {step.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className="workbench-step-image"
+                      src={step.imageUrl}
+                      alt=""
+                    />
+                  ) : null}
+                  {step.videoUrl ? (
+                    <video
+                      className="workbench-step-video"
+                      src={step.videoUrl}
+                      controls
+                      playsInline
+                    />
+                  ) : null}
                   <ul className="workbench-project-step-details">
                     {step.details
                       .filter((detail) => detail.trim())

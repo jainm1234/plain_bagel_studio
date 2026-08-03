@@ -4,6 +4,7 @@ export type SocialHints = {
   platform: string;
   title: string;
   description: string;
+  image: string;
 };
 
 function hostLabel(hostname: string) {
@@ -50,6 +51,7 @@ export function socialHintsFromUrl(url: string): SocialHints {
       description: title
         ? `a ${platform} project${title ? `: ${title}` : ""}.`
         : `a project shared on ${platform}.`,
+      image: "",
     };
   } catch {
     return {
@@ -58,6 +60,7 @@ export function socialHintsFromUrl(url: string): SocialHints {
       platform: "social",
       title: "",
       description: "",
+      image: "",
     };
   }
 }
@@ -77,15 +80,21 @@ export async function fetchSocialHints(url: string): Promise<SocialHints> {
       title?: string;
       description?: string;
       site?: string;
+      image?: string;
     };
     const title = (data.title || "").trim().toLowerCase() || local.title;
     const description =
       (data.description || "").trim().toLowerCase() || local.description;
+    const hasRemoteImage = Boolean((data.image || "").trim() || local.image);
     return {
       ...local,
       platform: data.site || local.platform,
       title,
       description,
+      // Serve through our proxy — Instagram CDN blocks browser hotlinks.
+      image: hasRemoteImage
+        ? `/api/social-image?url=${encodeURIComponent(local.url)}`
+        : "",
     };
   } catch {
     return local;

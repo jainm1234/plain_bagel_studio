@@ -6,6 +6,7 @@ type Meta = {
   title?: string;
   description?: string;
   site?: string;
+  image?: string;
 };
 
 function siteFromHost(host: string) {
@@ -25,6 +26,13 @@ async function fetchJson(url: string) {
   });
   if (!response.ok) return null;
   return response.json();
+}
+
+function pickImage(data: Record<string, unknown> | null) {
+  if (!data) return "";
+  const image =
+    data.thumbnail_url || data.thumbnail || data.image || data.thumbnail_url_with_play_button;
+  return typeof image === "string" ? image.trim() : "";
 }
 
 export async function GET(request: NextRequest) {
@@ -50,23 +58,27 @@ export async function GET(request: NextRequest) {
     if (noembed?.author_name && !meta.description) {
       meta.description = `by ${String(noembed.author_name)}`;
     }
+    const image = pickImage(noembed);
+    if (image) meta.image = image;
   } catch {
     // ignore
   }
 
-  if (!meta.title && /youtube\.com|youtu\.be/i.test(parsed.hostname)) {
+  if (/youtube\.com|youtu\.be/i.test(parsed.hostname)) {
     try {
       const yt = await fetchJson(
         `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
       );
       if (yt?.title) meta.title = String(yt.title);
       if (yt?.author_name) meta.description = `by ${String(yt.author_name)}`;
+      const image = pickImage(yt);
+      if (image) meta.image = image;
     } catch {
       // ignore
     }
   }
 
-  if (!meta.title && /tiktok\.com/i.test(parsed.hostname)) {
+  if (/tiktok\.com/i.test(parsed.hostname)) {
     try {
       const tiktok = await fetchJson(
         `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
@@ -75,6 +87,24 @@ export async function GET(request: NextRequest) {
       if (tiktok?.author_name) {
         meta.description = `by ${String(tiktok.author_name)}`;
       }
+      const image = pickImage(tiktok);
+      if (image) meta.image = image;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (/instagram\.com/i.test(parsed.hostname) && !meta.image) {
+    try {
+      const ig = await fetchJson(
+        `https://www.instagram.com/api/v1/oembed/?url=${encodeURIComponent(url)}`,
+      );
+      if (ig?.title && !meta.title) meta.title = String(ig.title);
+      if (ig?.author_name && !meta.description) {
+        meta.description = `by ${String(ig.author_name)}`;
+      }
+      const image = pickImage(ig);
+      if (image) meta.image = image;
     } catch {
       // ignore
     }

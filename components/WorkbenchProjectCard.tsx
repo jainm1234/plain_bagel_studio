@@ -1,21 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import WorkbenchEngageBar from "@/components/WorkbenchEngageBar";
-import EditPostButton from "@/components/EditPostButton";
-import {
-  getCommentsForPost,
-  type WorkbenchComment,
-} from "@/lib/workbenchComments";
+import { useState } from "react";
+import WorkbenchFireReaction from "@/components/WorkbenchFireReaction";
+import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
+import { displayAuthorHandle } from "@/lib/workbenchPostEdits";
 import { postIdFromHref } from "@/lib/workbenchReactions";
-import {
-  getPostEdit,
-  mergePostDraft,
-  type WorkbenchPostDraft,
-} from "@/lib/workbenchPostEdits";
-import { loadProjectDraft } from "@/lib/workbenchPostDrafts";
 
 type Props = {
   title: string;
@@ -44,6 +35,10 @@ function socialLabel(url: string) {
   }
 }
 
+function socialPreviewSrc(socialLink: string) {
+  return `/api/social-image?url=${encodeURIComponent(socialLink.trim())}`;
+}
+
 export default function WorkbenchProjectCard({
   title,
   href,
@@ -53,31 +48,38 @@ export default function WorkbenchProjectCard({
   comingSoon = false,
   author,
 }: Props) {
+  const { user } = useWorkbenchAuth();
+  const authorHandle = displayAuthorHandle(user, author);
   const postId = postIdFromHref(href);
-  const [comments, setComments] = useState<WorkbenchComment[]>([]);
-  const [editDraft, setEditDraft] = useState<WorkbenchPostDraft | null>(null);
+  const [socialFailed, setSocialFailed] = useState(false);
 
-  useEffect(() => {
-    if (comingSoon) return;
-    setComments(getCommentsForPost(postId));
-  }, [postId, comingSoon]);
+  const link = socialLink?.trim() || "";
+  const socialSrc = link && !socialFailed ? socialPreviewSrc(link) : "";
+  // Prefer social preview; fall back to local image if proxy fails.
+  const previewSrc = socialSrc || image || "";
+  const usingSocial = Boolean(socialSrc);
 
-  useEffect(() => {
-    if (comingSoon || !author) return;
-    let cancelled = false;
-    void loadProjectDraft({
-      postId,
-      title,
-      description: description || "",
-      socialLink: socialLink || "",
-    }).then((base) => {
-      if (cancelled || !base) return;
-      setEditDraft(mergePostDraft(base, getPostEdit(postId)));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [author, comingSoon, description, postId, socialLink, title]);
+  const mediaInner = previewSrc ? (
+    usingSocial || /^https?:\/\//i.test(previewSrc) ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={previewSrc}
+        alt=""
+        className="workbench-card-img"
+        onError={() => {
+          if (usingSocial) setSocialFailed(true);
+        }}
+      />
+    ) : (
+      <Image
+        src={previewSrc}
+        alt=""
+        width={800}
+        height={600}
+        className="workbench-card-img"
+      />
+    )
+  ) : null;
 
   return (
     <article
@@ -86,26 +88,12 @@ export default function WorkbenchProjectCard({
       }
     >
       <div className="workbench-card-media">
-        {image ? (
+        {previewSrc ? (
           comingSoon ? (
-            <div className="workbench-card-image">
-              <Image
-                src={image}
-                alt=""
-                width={800}
-                height={600}
-                className="workbench-card-img"
-              />
-            </div>
+            <div className="workbench-card-image">{mediaInner}</div>
           ) : (
             <Link href={href} className="workbench-card-image">
-              <Image
-                src={image}
-                alt=""
-                width={800}
-                height={600}
-                className="workbench-card-img"
-              />
+              {mediaInner}
             </Link>
           )
         ) : comingSoon ? (
@@ -140,7 +128,7 @@ export default function WorkbenchProjectCard({
                 href={`/work-bench/u/${author.id}`}
                 className="workbench-card-author"
               >
-                {author.handle}
+                {authorHandle}
               </Link>
             </>
           ) : null}
@@ -158,16 +146,6 @@ export default function WorkbenchProjectCard({
               </a>
             </>
           ) : null}
-          {editDraft ? (
-            <>
-              {" "}
-              <EditPostButton
-                author={author}
-                draft={editDraft}
-                className="workbench-card-edit"
-              />
-            </>
-          ) : null}
         </h2>
 
         {description ? (
@@ -176,31 +154,7 @@ export default function WorkbenchProjectCard({
 
         {!comingSoon ? (
           <div className="workbench-card-engage">
-            {comments.length > 0 ? (
-              <ul className="workbench-card-comments">
-                {comments.map((comment) => (
-                  <li key={comment.id} className="workbench-card-comment">
-                    <Link
-                      href={`/work-bench/u/${comment.authorId}`}
-                      className="workbench-comment-author"
-                    >
-                      {comment.authorHandle}
-                    </Link>
-                    <span className="workbench-card-comment-body">
-                      {" "}
-                      {comment.body}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            <WorkbenchEngageBar
-              postId={postId}
-              inputId={`card-comment-${postId}`}
-              inlineFire
-              onCommentsChange={setComments}
-            />
+            <WorkbenchFireReaction postId={postId} />
           </div>
         ) : null}
       </div>
