@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useClerk, useSignIn, useUser } from "@clerk/nextjs";
 import WorkbenchLoginModal from "@/components/WorkbenchLoginModal";
 
 export type AuthProvider = "apple" | "google";
@@ -21,129 +22,176 @@ export type WorkbenchUser = {
   createdAt: string;
 };
 
+type ClerkUser = NonNullable<ReturnType<typeof useUser>["user"]>;
+
 type AuthContextValue = {
   user: WorkbenchUser | null;
   ready: boolean;
   signIn: (provider: AuthProvider) => void;
   signOut: () => void;
-  updateProfile: (patch: Partial<Pick<WorkbenchUser, "handle" | "displayName">>) => void;
+  updateProfile: (
+    patch: Partial<Pick<WorkbenchUser, "handle" | "displayName">>,
+  ) => void;
   openLogin: (message?: string) => void;
   closeLogin: () => void;
 };
 
-const STORAGE_KEY = "workbench.user.v1";
 const DEFAULT_LOGIN_MESSAGE = "log in";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function makeId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `wb_${crypto.randomUUID().slice(0, 8)}`;
-  }
-  return `wb_${Math.random().toString(36).slice(2, 10)}`;
+function sanitizeHandle(value: string, fallback: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "")
+      .slice(0, 24) || fallback
+  );
 }
 
-function makeHandle(provider: AuthProvider) {
-  const suffix = Math.random().toString(36).slice(2, 6);
-  return provider === "apple" ? `apple_${suffix}` : `google_${suffix}`;
+function providerFromUser(user: ClerkUser): AuthProvider {
+  const providers = user.externalAccounts.map(
+    (account: { provider: string }) => account.provider,
+  );
+  if (providers.some((provider: string) => provider.includes("apple"))) {
+    return "apple";
+  }
+  return "google";
 }
 
-function readUser(): WorkbenchUser | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as WorkbenchUser;
-    if (!parsed?.id || !parsed?.handle) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
+function mapClerkUser(user: ClerkUser): WorkbenchUser {
+  const metaHandle =
+    typeof user.unsafeMetadata?.handle === "string"
+      ? user.unsafeMetadata.handle
+      : "";
+  const emailLocal =
+    user.primaryEmailAddress?.emailAddress?.split("@")[0] || "";
+  const fallback = `user_${user.id.replace(/^user_/, "").slice(0, 8)}`;
+  const handle = sanitizeHandle(
+    metaHandle || user.username || emailLocal || fallback,
+    fallback,
+  );
+  const displayName =
+    user.fullName?.trim() ||
+    user.firstName?.trim() ||
+    (typeof user.unsafeMetadata?.displayName === "string"
+      ? user.unsafeMetadata.displayName.trim()
+      : "") ||
+    handle;
 
-function writeUser(user: WorkbenchUser | null) {
-  if (!user) {
-    localStorage.removeItem(STORAGE_KEY);
-    return;
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  return {
+    id: user.id,
+    handle,
+    displayName,
+    provider: providerFromUser(user),
+    createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+  };
 }
 
 export function WorkbenchAuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<WorkbenchUser | null>(null);
-  const [ready, setReady] = useState(false);
+  const { user: clerkUser, isLoaded } = useUser();
+  const clerk = useClerk();
+  const { signIn: clerkSignIn } = useSignIn();
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginMessage, setLoginMessage] = useState(DEFAULT_LOGIN_MESSAGE);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  const user = useMemo(
+    () => (clerkUser ? mapClerkUser(clerkUser) : null),
+    [clerkUser],
+  );
 
   useEffect(() => {
-    setUser(readUser());
-    setReady(true);
-  }, []);
+    if (user && loginOpen) setLoginOpen(false);
+  }, [user, loginOpen]);
 
   const closeLogin = useCallback(() => {
     setLoginOpen(false);
+    setSignInError(null);
   }, []);
 
   const openLogin = useCallback((message?: string) => {
     setLoginMessage(message?.trim() || DEFAULT_LOGIN_MESSAGE);
+    setSignInError(null);
     setLoginOpen(true);
   }, []);
 
-  const signIn = useCallback((provider: AuthProvider) => {
-    const next: WorkbenchUser = {
-      id: makeId(),
-      handle: makeHandle(provider),
-      displayName: provider === "apple" ? "apple user" : "google user",
-      provider,
-      createdAt: new Date().toISOString(),
-    };
-    writeUser(next);
-    setUser(next);
-    setLoginOpen(false);
-  }, []);
+  const signIn = useCallback(
+    (provider: AuthProvider) => {
+      if (!clerkSignIn) {
+        setSignInError("sign-in isn’t ready yet. try again in a moment.");
+        return;
+      }
+
+      setSignInError(null);
+      const redirectCallbackUrl = `${window.location.origin}/sso-callback`;
+      const redirectUrl = window.location.href;
+
+      void clerkSignIn
+        .sso({
+          strategy: provider === "apple" ? "oauth_apple" : "oauth_google",
+          redirectUrl,
+          redirectCallbackUrl,
+        })
+        .then((result) => {
+          if (result.error) {
+            setSignInError(
+              result.error.message ||
+                "could not start sign-in. enable Google/Apple in the Clerk dashboard.",
+            );
+          }
+        })
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "could not start sign-in. check Clerk social connections.";
+          setSignInError(message);
+        });
+    },
+    [clerkSignIn],
+  );
 
   const signOut = useCallback(() => {
-    writeUser(null);
-    setUser(null);
-  }, []);
+    void clerk.signOut();
+  }, [clerk]);
 
   const updateProfile = useCallback(
     (patch: Partial<Pick<WorkbenchUser, "handle" | "displayName">>) => {
-      setUser((current) => {
-        if (!current) return current;
-        const nextHandle = (patch.handle ?? current.handle)
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9_]/g, "")
-          .slice(0, 24) || current.handle;
-        const knownId =
-          nextHandle === "malvika" ? "wb_malvika" : current.id;
-        const next = {
-          ...current,
-          ...patch,
-          id: knownId,
+      if (!clerkUser) return;
+      const current = mapClerkUser(clerkUser);
+      const nextHandle = sanitizeHandle(
+        patch.handle ?? current.handle,
+        current.handle,
+      );
+      const nextDisplayName =
+        (patch.displayName ?? current.displayName).trim().slice(0, 40) ||
+        current.displayName;
+
+      void clerkUser.update({
+        firstName: nextDisplayName,
+        unsafeMetadata: {
+          ...clerkUser.unsafeMetadata,
           handle: nextHandle,
-          displayName:
-            (patch.displayName ?? current.displayName).trim().slice(0, 40) ||
-            current.displayName,
-        };
-        writeUser(next);
-        return next;
+          displayName: nextDisplayName,
+        },
       });
     },
-    [],
+    [clerkUser],
   );
 
   const value = useMemo(
     () => ({
       user,
-      ready,
+      ready: isLoaded,
       signIn,
       signOut,
       updateProfile,
       openLogin,
       closeLogin,
     }),
-    [user, ready, signIn, signOut, updateProfile, openLogin, closeLogin],
+    [user, isLoaded, signIn, signOut, updateProfile, openLogin, closeLogin],
   );
 
   return (
@@ -152,6 +200,7 @@ export function WorkbenchAuthProvider({ children }: { children: ReactNode }) {
       {loginOpen ? (
         <WorkbenchLoginModal
           message={loginMessage}
+          error={signInError}
           onClose={closeLogin}
           onSignIn={signIn}
         />

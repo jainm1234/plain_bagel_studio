@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { ClerkProvider } from "@clerk/nextjs";
 import MailingListPopover from "@/components/MailingListPopover";
 import SubmitProjectFlow from "@/components/SubmitProjectFlow";
 import { WorkbenchAuthProvider } from "@/components/WorkbenchAuth";
@@ -23,11 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${suisseIntl.variable} ${suisseIntl.className}`}>
-        <WorkbenchAuthProvider>
-          {children}
-          <SubmitProjectFlow variant="host" />
-          <MailingListPopover />
-        </WorkbenchAuthProvider>
+        <ClerkProvider>
+          <WorkbenchAuthProvider>
+            {children}
+            <SubmitProjectFlow variant="host" />
+            <MailingListPopover />
+          </WorkbenchAuthProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

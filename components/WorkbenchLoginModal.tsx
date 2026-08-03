@@ -5,12 +5,14 @@ import { createPortal } from "react-dom";
 
 type Props = {
   message: string;
+  error?: string | null;
   onClose: () => void;
   onSignIn: (provider: "apple" | "google") => void;
 };
 
 export default function WorkbenchLoginModal({
   message,
+  error,
   onClose,
   onSignIn,
 }: Props) {
@@ -71,6 +73,7 @@ export default function WorkbenchLoginModal({
             continue with google
           </button>
         </div>
+        {error ? <p className="workbench-flow-error">{error}</p> : null}
       </div>
     </div>,
     document.body,
