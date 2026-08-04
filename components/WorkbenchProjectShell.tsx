@@ -5,6 +5,7 @@ import WorkbenchComments from "@/components/WorkbenchComments";
 import EditPostButton from "@/components/EditPostButton";
 import DeletePostButton from "@/components/DeletePostButton";
 import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
+import WorkbenchProjectTitle from "@/components/WorkbenchProjectTitle";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -13,7 +14,6 @@ import {
   type WorkbenchPostRelated,
 } from "@/lib/workbenchPostEdits";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
-import { socialPlatformLabel } from "@/lib/socialHints";
 
 type Props = {
   children: ReactNode;
@@ -76,49 +76,14 @@ export default function WorkbenchProjectShell({
             socialLink={socialLink}
             title={`${title} cover`}
           />
-          <h1 className="workbench-project-title">
-            {title}
-            {author ? (
-              <>
-                {" "}
-                <span className="workbench-project-by">by</span>{" "}
-                <Link
-                  href={`/work-bench/u/${author.id}`}
-                  className="workbench-project-author"
-                >
-                  {authorHandle}
-                </Link>
-              </>
-            ) : null}
-            {socialLink ? (
-              <>
-                {" "}
-                <span className="workbench-project-by">on</span>{" "}
-                <a
-                  className="workbench-project-social"
-                  href={socialLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {socialPlatformLabel(socialLink)}
-                </a>
-              </>
-            ) : null}
-          </h1>
+          <WorkbenchProjectTitle
+            title={title}
+            author={author}
+            authorLabel={authorHandle}
+            socialLink={socialLink}
+            related={related}
+          />
           {lead ? <p className="workbench-project-lead">{lead}</p> : null}
-          {related.length > 0 ? (
-            <p className="workbench-project-related">
-              <span className="workbench-project-by">references </span>
-              {related.map((item, index) => (
-                <span key={item.href}>
-                  {index > 0 ? ", " : null}
-                  <Link className="workbench-project-social" href={item.href}>
-                    {item.title}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          ) : null}
         </header>
         {children}
         {postId ? <WorkbenchComments postId={postId} /> : null}

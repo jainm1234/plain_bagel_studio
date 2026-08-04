@@ -4,10 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import WorkbenchFireReaction from "@/components/WorkbenchFireReaction";
+import WorkbenchProjectTitle from "@/components/WorkbenchProjectTitle";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import { displayAuthorHandle } from "@/lib/workbenchPostEdits";
 import { postIdFromHref } from "@/lib/workbenchReactions";
-import { socialPlatformLabel } from "@/lib/socialHints";
+import { socialPreviewSrc } from "@/lib/socialHints";
 
 type Props = {
   title: string;
@@ -21,10 +22,6 @@ type Props = {
     handle: string;
   };
 };
-
-function socialPreviewSrc(socialLink: string) {
-  return `/api/social-image?url=${encodeURIComponent(socialLink.trim())}`;
-}
 
 export default function WorkbenchProjectCard({
   title,
@@ -42,7 +39,6 @@ export default function WorkbenchProjectCard({
 
   const link = socialLink?.trim() || "";
   const socialSrc = link && !socialFailed ? socialPreviewSrc(link) : "";
-  // Prefer social preview; fall back to local image if proxy fails.
   const previewSrc = socialSrc || image || "";
   const usingSocial = Boolean(socialSrc);
 
@@ -98,42 +94,15 @@ export default function WorkbenchProjectCard({
       </div>
 
       <div className="workbench-card-body">
-        <h2 className="workbench-card-title">
-          {comingSoon ? (
-            <span>
-              {title}
-              <span className="workbench-card-soon"> coming soon</span>
-            </span>
-          ) : (
-            <Link href={href}>{title}</Link>
-          )}
-          {author ? (
-            <>
-              {" "}
-              <span className="workbench-card-by">by</span>{" "}
-              <Link
-                href={`/work-bench/u/${author.id}`}
-                className="workbench-card-author"
-              >
-                {authorHandle}
-              </Link>
-            </>
-          ) : null}
-          {socialLink ? (
-            <>
-              {" "}
-              <span className="workbench-card-by">on</span>{" "}
-              <a
-                className="workbench-card-social"
-                href={socialLink}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {socialPlatformLabel(socialLink)}
-              </a>
-            </>
-          ) : null}
-        </h2>
+        <WorkbenchProjectTitle
+          tone="card"
+          title={title}
+          titleHref={comingSoon ? undefined : href}
+          comingSoon={comingSoon}
+          author={author}
+          authorLabel={authorHandle}
+          socialLink={socialLink}
+        />
 
         {description ? (
           <p className="workbench-card-description">{description}</p>

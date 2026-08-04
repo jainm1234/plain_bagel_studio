@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 import { useState } from "react";
+import { socialPreviewSrc } from "@/lib/socialHints";
 
 type Props = {
   coverImage?: string | null;
@@ -10,10 +11,6 @@ type Props = {
   empty?: boolean;
   onClick?: (event: MouseEvent<HTMLElement>) => void;
 };
-
-function socialPreviewSrc(socialLink: string) {
-  return `/api/social-image?url=${encodeURIComponent(socialLink.trim())}`;
-}
 
 export default function WorkbenchProjectCover({
   coverImage,

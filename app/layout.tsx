@@ -31,7 +31,7 @@ export default function RootLayout({
         >
           <WorkbenchAuthProvider>
             {children}
-            <SubmitProjectFlow variant="host" />
+            <SubmitProjectFlow />
             <MailingListPopover />
           </WorkbenchAuthProvider>
         </ClerkProvider>

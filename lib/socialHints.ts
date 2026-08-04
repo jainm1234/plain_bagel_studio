@@ -29,6 +29,11 @@ export function socialPlatformLabel(urlOrHost: string) {
   return hostLabel(urlOrHost);
 }
 
+/** Proxied social preview image URL for browser display. */
+export function socialPreviewSrc(socialLink: string) {
+  return `/api/social-image?url=${encodeURIComponent(socialLink.trim())}`;
+}
+
 function titleFromPath(pathname: string) {
   const parts = pathname
     .split("/")

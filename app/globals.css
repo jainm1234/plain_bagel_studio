@@ -3805,21 +3805,14 @@ ol.workbench-preview-edit-list > li {
   color: #777;
 }
 
-.workbench-project-by {
+.workbench-project-by,
+.workbench-card-by,
+.workbench-title-by {
   color: #777;
 }
 
 .workbench-project-lead {
   margin: 0.45rem 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-  color: #777;
-  max-width: 28rem;
-}
-
-.workbench-project-related {
-  margin: 0.35rem 0 0;
   font-size: 12px;
   line-height: 1.45;
   letter-spacing: 0.02em;

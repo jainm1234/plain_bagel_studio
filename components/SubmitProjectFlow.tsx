@@ -15,7 +15,7 @@ import {
   type SchematicGuess,
 } from "@/lib/reverseEngineer";
 import { analyzeProject } from "@/lib/analyzeProject";
-import { fetchSocialHints, socialPlatformLabel } from "@/lib/socialHints";
+import { fetchSocialHints } from "@/lib/socialHints";
 import {
   WORKBENCH_PROJECTS,
   mergeFeedProjects,
@@ -27,15 +27,15 @@ import WorkbenchSchematic from "@/components/WorkbenchSchematic";
 import WorkbenchRichEditor, {
   buildProjectPostHtml,
   fileBasename,
-  withSocialInPostHtml,
 } from "@/components/WorkbenchRichEditor";
 import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
+import WorkbenchProjectTitle from "@/components/WorkbenchProjectTitle";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
 import {
-  openWorkbenchSubmit,
   postHref,
   savePostEdit,
   type WorkbenchPostDraft,
+  type WorkbenchPostRelated,
 } from "@/lib/workbenchPostEdits";
 import {
   snapWorkbenchImageWidth,
@@ -45,46 +45,6 @@ import {
   hostDataUrl,
   hostDataUrlsInHtml,
 } from "@/lib/workbenchMediaUpload";
-
-function downloadTextFile(
-  filename: string,
-  content: string,
-  mime = "text/plain;charset=utf-8",
-) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadHref(filename: string, href: string) {
-  const anchor = document.createElement("a");
-  anchor.href = href;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-}
-
-function filenameFromDataUrl(dataUrl: string, base: string) {
-  const mime = dataUrl.match(/^data:([^;]+)/)?.[1] || "";
-  const ext =
-    mime === "image/jpeg"
-      ? "jpg"
-      : mime === "image/webp"
-        ? "webp"
-        : mime === "image/gif"
-          ? "gif"
-          : mime === "image/svg+xml"
-            ? "svg"
-            : "png";
-  return `${base}.${ext}`;
-}
 
 type PartItem = {
   id: string;
@@ -103,11 +63,7 @@ type StepItem = {
   videoUrl?: string | null;
 };
 
-type RelatedProject = {
-  title: string;
-  href: string;
-  authorHandle?: string;
-};
+type RelatedProject = WorkbenchPostRelated;
 
 type WizardStep =
   | "code"
@@ -187,17 +143,6 @@ const CODE_EXT =
 
 const SKIP_PATH =
   /(^|\/)(node_modules|\.git|\.svn|\.hg|dist|build|\.next|__pycache__|\.venv|venv|target|\.DS_Store)(\/|$)/i;
-
-const STEP_ORDER: WizardStep[] = [
-  "code",
-  "header",
-  "description",
-  "materials",
-  "howto",
-  "schematic",
-  "scripts",
-  "done",
-];
 
 const STEPPER_STEPS: WizardStep[] = [
   "code",
@@ -449,11 +394,7 @@ function docsEqual(a: DocSnapshot, b: DocSnapshot) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-type Props = {
-  variant?: "link" | "widget" | "host";
-};
-
-export default function SubmitProjectFlow({ variant = "link" }: Props) {
+export default function SubmitProjectFlow() {
   const { user, openLogin } = useWorkbenchAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>("code");
@@ -538,8 +479,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       cancelled = true;
     };
   }, [open]);
-
-  const code = useMemo(() => combineFiles(files, paste), [files, paste]);
 
   function currentDoc(): DocSnapshot {
     return {
@@ -698,24 +637,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     );
   }
 
-  async function runAnalyze(input: {
-    socialTitle?: string;
-    socialDescription?: string;
-  } = {}) {
-    const namingFile =
-      folderHintFromFiles(files) ||
-      files[0]?.path ||
-      sourceLabelFromFiles(files, paste);
-    return analyzeProject({
-      code,
-      filename: namingFile,
-      folderHint: folderHintFromFiles(files),
-      relatedTitles: related.map((project) => project.title),
-      socialTitle: input.socialTitle,
-      socialDescription: input.socialDescription,
-    });
-  }
-
   useEffect(() => {
     if (!open || skipHistoryRef.current) return;
     const timer = window.setTimeout(() => {
@@ -752,8 +673,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     [relatedQuery, related, projectCatalog],
   );
 
-  const stepIndex = STEP_ORDER.indexOf(step);
-
   function reset() {
     setStep("code");
     setEditPostId(null);
@@ -775,11 +694,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     setDraftError(null);
     setDraggingFiles(false);
     resetHistory(EMPTY_DOC);
-  }
-
-  function openFlow() {
-    reset();
-    setOpen(true);
   }
 
   function closeFlow() {
@@ -950,6 +864,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       steps: prepared.steps,
       schematics: prepared.schematics,
       files: prepared.files,
+      related: prepared.related || [],
     };
 
     const body = JSON.stringify(payload);
@@ -1089,7 +1004,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   }
 
   useEffect(() => {
-    if (variant === "widget") return;
     function onOpen() {
       reset();
       setOpen(true);
@@ -1106,7 +1020,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
       window.removeEventListener("workbench-edit-post", onEdit);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -1355,51 +1269,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     }
   }
 
-  async function enrichFromSocialAndContinue() {
-    setAnalyzing(true);
-    try {
-      const url = socialLink.trim();
-      let socialTitle = "";
-      let socialDescription = "";
-      if (url) {
-        const hints = await fetchSocialHints(url);
-        socialTitle = hints.title;
-        socialDescription = hints.description;
-      }
-
-      const parsed = await runAnalyze({
-        socialTitle,
-        socialDescription,
-      });
-
-      if (projectName.trim() && projectName !== "untitled project") {
-        parsed.projectName = projectName.trim();
-      }
-
-      const replaceParts = parts.length === 0 && steps.length === 0;
-      const leadIsWeak =
-        !lead.trim() ||
-        /could not detect|add your code|add code or materials|flesh out/i.test(
-          lead,
-        );
-
-      if (replaceParts || leadIsWeak) {
-        applyAnalysis(parsed, { replaceParts, social: url });
-      } else {
-        setResult(parsed);
-        setPostHtml((current) =>
-          withSocialInPostHtml(
-            current || buildProjectPostHtml({ summary: lead }),
-            url,
-          ),
-        );
-      }
-    } finally {
-      setAnalyzing(false);
-      setStep("materials");
-    }
-  }
-
   function removePart(id: string) {
     setParts((current) => current.filter((part) => part.id !== id));
   }
@@ -1559,14 +1428,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once after login
   }, [user]);
 
-  function triggerOpen() {
-    if (variant === "widget" || variant === "host") {
-      openWorkbenchSubmit();
-      return;
-    }
-    openFlow();
-  }
-
   function goNext() {
     if (step === "done") {
       closeFlow();
@@ -1682,31 +1543,16 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
               empty={!coverImage && !socialLink.trim()}
               onClick={(event) => event.stopPropagation()}
             />
-            <h1 className="workbench-project-title">
-              {projectName.trim() || "project title"}
-              {user?.handle ? (
-                <>
-                  {" "}
-                  <span className="workbench-project-by">by</span>{" "}
-                  {user.handle}
-                </>
-              ) : null}
-              {socialLink.trim() ? (
-                <>
-                  {" "}
-                  <span className="workbench-project-by">on</span>{" "}
-                  <a
-                    className="workbench-project-social"
-                    href={socialLink.trim()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {socialPlatformLabel(socialLink)}
-                  </a>
-                </>
-              ) : null}
-            </h1>
+            <WorkbenchProjectTitle
+              title={projectName.trim() || "project title"}
+              author={
+                user ? { id: user.id, handle: user.handle } : null
+              }
+              socialLink={socialLink}
+              related={related}
+              onSocialClick={(event) => event.stopPropagation()}
+              onRelatedClick={(event) => event.stopPropagation()}
+            />
             {lead.trim() ? (
               <p className="workbench-project-lead">{lead.trim()}</p>
             ) : (
@@ -1714,23 +1560,6 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
                 project subtitle
               </p>
             )}
-            {related.length > 0 ? (
-              <p className="workbench-project-related">
-                <span className="workbench-project-by">references </span>
-                {related.map((item, index) => (
-                  <span key={item.href}>
-                    {index > 0 ? ", " : null}
-                    <a
-                      className="workbench-project-social"
-                      href={item.href}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {item.title}
-                    </a>
-                  </span>
-                ))}
-              </p>
-            ) : null}
           </header>
 
           <nav className="workbench-project-toc" aria-label="Table of contents">
@@ -2642,7 +2471,7 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
   );
 
   const modal =
-    (variant === "link" || variant === "host") && open && mounted
+    open && mounted
       ? createPortal(
           <div
             className="workbench-flow"
@@ -2825,24 +2654,5 @@ export default function SubmitProjectFlow({ variant = "link" }: Props) {
         )
       : null;
 
-  if (variant === "host") {
-    return modal;
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        className={
-          variant === "widget"
-            ? "workbench-widget-cta"
-            : "workbench-submit-link"
-        }
-        onClick={triggerOpen}
-      >
-        submit a project <span aria-hidden="true">+</span>
-      </button>
-      {modal}
-    </>
-  );
+  return modal;
 }
