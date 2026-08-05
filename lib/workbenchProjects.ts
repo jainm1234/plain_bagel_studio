@@ -145,16 +145,48 @@ export function mergeFeedProjects(
   fromDb: WorkbenchProject[],
   idFromHref: (href: string) => string,
 ) {
-  const seededIds = new Set(seeded.map((project) => idFromHref(project.href)));
-  const seededKeys = new Set(seeded.map(projectKey));
-  const seededHrefs = new Set(seeded.map((project) => project.href));
+  const usedDb = new Set<string>();
+
+  function matchDb(project: WorkbenchProject) {
+    const id = idFromHref(project.href);
+    const key = projectKey(project);
+    return (
+      fromDb.find((row) => idFromHref(row.href) === id) ||
+      fromDb.find((row) => row.href === project.href) ||
+      fromDb.find((row) => projectKey(row) === key)
+    );
+  }
+
+  const mergedSeeded = seeded.map((project) => {
+    const db = matchDb(project);
+    if (!db) return project;
+    usedDb.add(db.href);
+    return {
+      ...project,
+      title: db.title || project.title,
+      image: db.image || project.image,
+      description: db.description || project.description,
+      socialLink: db.socialLink || project.socialLink,
+      author: db.author || project.author,
+      updatedAt: db.updatedAt || project.updatedAt,
+    };
+  });
 
   const extras = fromDb.filter((project) => {
-    if (seededHrefs.has(project.href)) return false;
-    if (seededIds.has(idFromHref(project.href))) return false;
-    if (seededKeys.has(projectKey(project))) return false;
+    if (usedDb.has(project.href)) return false;
+    if (mergedSeeded.some((seed) => seed.href === project.href)) return false;
+    if (
+      mergedSeeded.some(
+        (seed) => idFromHref(seed.href) === idFromHref(project.href),
+      )
+    ) {
+      return false;
+    }
+    if (mergedSeeded.some((seed) => projectKey(seed) === projectKey(project))) {
+      return false;
+    }
     return true;
   });
 
-  return [...seeded, ...extras];
+  return [...mergedSeeded, ...extras];
 }
