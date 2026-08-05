@@ -38,8 +38,9 @@ export default function WorkbenchProjectCard({
   const [socialFailed, setSocialFailed] = useState(false);
 
   const link = socialLink?.trim() || "";
-  const socialSrc = link && !socialFailed ? socialPreviewSrc(link) : "";
-  const previewSrc = socialSrc || image || "";
+  const socialSrc =
+    !image && link && !socialFailed ? socialPreviewSrc(link) : "";
+  const previewSrc = image || socialSrc || "";
   const usingSocial = Boolean(socialSrc);
 
   const mediaInner = previewSrc ? (
