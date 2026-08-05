@@ -109,7 +109,7 @@ export default function WorkbenchFeed({ projects }: Props) {
         <div className="workbench-brand">
           <p className="workbench-brand-title">work bench</p>
           <p className="workbench-tagline">
-            document and share hardware + physical ai projects
+            document and share hardware + coding projects
           </p>
         </div>
 
