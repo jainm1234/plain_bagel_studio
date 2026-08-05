@@ -70,8 +70,10 @@ Rules:
 - Prefer evidence in filenames, imports, pin defines, manifests, comments, and structure over guesses.
 - Fill every field you can support from the code. Empty arrays/null only when the code truly has no evidence.
 - Materials: physical hardware only when clearly implied. Otherwise []. Never list computers, IDEs, languages, frameworks, or packages as materials.
+- Keep the materials list short. Merge obvious pairs onto one line (e.g. "breadboard + jumper wires", "led + 220Ω resistor"). Prefer 3–6 items. Notes stay tiny (one qualifier).
+- Name parts the same way in steps as in materials so they can be color-coded in the guide (like assembly letters: part A in the list, same part highlighted in the steps).
 - Schematic: null unless real wiring/pins/boards appear in the code. Never invent a board diagram for software-only work.
-- Steps: 5–10 practical steps a careful reader can follow. Software → install, configure, run, verify. Hardware → gather, wire/assemble, flash/power, test. No decorative steps.
+- Steps: 5–8 practical check-off steps a reader can follow along. Software → install, configure, run, verify. Hardware → gather, wire/assemble, flash/power, test. One action per step. No decorative steps.
 - Description: always write a brief useful body from the code (one short paragraph). Do not pad or repeat the summary word-for-word if you can add one concrete detail.
 - Social title/description may refine naming and summary; code wins for materials, schematic, and procedure.
 - buyUrl: "" if unknown; a search URL is acceptable when the part name is solid.

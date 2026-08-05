@@ -19,17 +19,13 @@ const LEAD =
 const materials = [
   {
     name: "esp32-s3 sense",
-    note: "with pdm mic",
+    note: "onboard pdm mic",
     buy: amazonSearchUrl("Seeed XIAO ESP32S3 Sense"),
   },
   {
-    name: "breadboard",
-    buy: amazonSearchUrl("solderless breadboard"),
-  },
-  {
-    name: "jumper wires",
+    name: "breadboard + jumper wires",
     note: "male-to-male",
-    buy: amazonSearchUrl("dupont jumper wires male to male"),
+    buy: amazonSearchUrl("solderless breadboard jumper wire kit"),
   },
   {
     name: "push button",
@@ -37,18 +33,12 @@ const materials = [
     buy: amazonSearchUrl("tactile push button switch kit"),
   },
   {
-    name: "led",
+    name: "led + 220Ω resistor",
     note: "rec indicator",
-    buy: amazonSearchUrl("5mm LED assortment kit"),
+    buy: amazonSearchUrl("5mm LED 220 ohm resistor kit"),
   },
   {
-    name: "resistor",
-    note: "~220Ω for led",
-    buy: amazonSearchUrl("220 ohm resistor assortment"),
-  },
-  {
-    name: "usb cable",
-    note: "usb-c",
+    name: "usb-c cable",
     buy: amazonSearchUrl("USB C cable data"),
   },
 ];
@@ -57,85 +47,47 @@ const steps = [
   {
     title: "gather your parts",
     details: [
-      "get everything from the materials list: esp32-s3 sense, push button, led, resistor, breadboard, jumper wires, and usb cable.",
-      "you also need a computer with python 3 and the arduino ide installed.",
+      "check off the materials list: esp32-s3 sense, breadboard + jumper wires, push button, led + 220Ω resistor, and usb-c cable.",
+      "you also need a computer with python 3 and the arduino ide.",
     ],
   },
   {
-    title: "put the board on the breadboard",
+    title: "seat the board",
     details: [
-      "place the esp32-s3 sense onto the breadboard so its pins sit firmly in the holes.",
-      "leave space next to it for the button and led.",
+      "press the esp32-s3 sense into the breadboard. leave room beside it for the button and led. the mic is onboard — no extra wiring.",
     ],
   },
   {
     title: "wire the button",
     details: [
-      "take two jumper wires.",
-      "connect one side of the button to pin d02 (gpio 2) on the esp32.",
-      "connect the other side of the button to gnd (ground).",
-      "when you press the button, the board will start recording.",
+      "use jumper wires: one side of the button to d02 (gpio 2) on the esp32, the other side to gnd. hold = record.",
     ],
   },
   {
     title: "wire the led",
     details: [
-      "find the longer leg of the led — that is the positive side (anode).",
-      "connect pin d03 (gpio 3) to one end of the resistor.",
-      "connect the other end of the resistor to the longer leg of the led.",
-      "connect the shorter leg of the led to gnd.",
-      "the led should light up while you are recording.",
+      "d03 (gpio 3) → resistor → long led leg. short led leg → gnd. the led lights while recording.",
     ],
   },
   {
-    title: "skip the mic wiring",
+    title: "flash the firmware",
     details: [
-      "the esp32-s3 sense already has a microphone built in.",
-      "you do not need to connect any extra mic wires.",
+      "download notebook_recorder.ino, open it in arduino ide, install the espressif esp32 board package, then plug in the usb-c cable.",
+      "pick your esp32-s3 board and port, upload, and set serial monitor to 115200. you should see “ready — hold d02 to record.”",
     ],
   },
   {
-    title: "download and open the firmware",
+    title: "run the companion app",
     details: [
-      "download notebook_recorder.ino from the scripts section below.",
-      "open it in the arduino ide.",
+      "download recorder_ui.py, then: pip install flask pyserial openai-whisper bleak && python recorder_ui.py",
+      "a browser should open at http://localhost:5000.",
     ],
   },
   {
-    title: "set up the arduino ide for esp32",
+    title: "record a note",
     details: [
-      "in arduino ide, go to board manager and install the “esp32” package by espressif.",
-      "plug the esp32 into your computer with the usb cable.",
-      "under tools → board, choose your esp32-s3 board.",
-      "under tools → port, choose the port that appears when the board is plugged in.",
-    ],
-  },
-  {
-    title: "upload the firmware",
-    details: [
-      "click upload and wait until it finishes.",
-      "open serial monitor and set the baud rate to 115200.",
-      "you should see a message like “ready — hold d02 to record.”",
-    ],
-  },
-  {
-    title: "install the companion app",
-    details: [
-      "download recorder_ui.py from the scripts section below.",
-      "open a terminal on your computer.",
-      "run: pip install flask pyserial openai-whisper bleak",
-      "then run: python recorder_ui.py",
-      "a browser window should open at http://localhost:5000",
-    ],
-  },
-  {
-    title: "record your first note",
-    details: [
-      "keep the companion app running.",
-      "hold the button, speak your note, then let go.",
-      "the led lights while you hold the button.",
-      "when you release, the recording syncs over bluetooth, gets transcribed, and saves to ~/desktop/recordings.",
-      "if bluetooth does not connect, plug the board in with usb and click “usb sync” in the companion app.",
+      "hold the button, speak, let go. the led stays on while you hold. the clip syncs over bluetooth, transcribes, and saves to ~/desktop/recordings.",
+      "if bluetooth fails, plug in usb and click “usb sync.”",
     ],
   },
 ];

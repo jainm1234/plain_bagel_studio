@@ -123,7 +123,7 @@ export function searchWorkbenchProjects(
     (project) => !excluded.has(project.href) && !project.comingSoon,
   );
 
-  if (!query.trim()) return available.slice(0, 6);
+  if (!query.trim()) return [];
 
   return available
     .filter((project) => projectMatchesWorkbenchQuery(project, query))

@@ -30,7 +30,12 @@ import WorkbenchRichEditor, {
 } from "@/components/WorkbenchRichEditor";
 import WorkbenchProjectCover from "@/components/WorkbenchProjectCover";
 import WorkbenchProjectTitle from "@/components/WorkbenchProjectTitle";
+import WorkbenchPartCode from "@/components/WorkbenchPartCode";
 import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
+import {
+  highlightPartText,
+  marksForParts,
+} from "@/lib/workbenchBuildGuide";
 import {
   postHref,
   savePostEdit,
@@ -663,15 +668,14 @@ export default function SubmitProjectFlow() {
     return `${files.length} files`;
   }, [files]);
 
-  const relatedSuggestions = useMemo(
-    () =>
-      searchWorkbenchProjects(
-        relatedQuery,
-        related.map((project) => project.href),
-        projectCatalog,
-      ),
-    [relatedQuery, related, projectCatalog],
-  );
+  const relatedSuggestions = useMemo(() => {
+    if (!relatedQuery.trim()) return [];
+    return searchWorkbenchProjects(
+      relatedQuery,
+      related.map((project) => project.href),
+      projectCatalog,
+    );
+  }, [relatedQuery, related, projectCatalog]);
 
   function reset() {
     setStep("code");
@@ -1478,6 +1482,8 @@ export default function SubmitProjectFlow() {
             : "next";
 
   const scriptList = scriptEntries(files, paste);
+  const previewParts = parts.filter((part) => part.name.trim());
+  const partMarks = marksForParts(previewParts);
   const showMaterials = parts.length > 0 || step === "materials";
   const showHowto = steps.length > 0 || step === "howto";
   const showSchematic = schematics.length > 0 || step === "schematic";
@@ -1635,11 +1641,10 @@ export default function SubmitProjectFlow() {
               <h2 className="workbench-project-heading">materials</h2>
               {parts.some((part) => part.name.trim()) ? (
                 <div className="workbench-project-materials">
-                  {parts
-                    .filter((part) => part.name.trim())
-                    .map((part) => {
+                  {previewParts.map((part, index) => {
                       const buyHref =
                         part.buyUrl.trim() || amazonSearchUrl(part.name);
+                      const mark = partMarks[index];
                       return (
                         <div
                           key={part.id}
@@ -1647,6 +1652,12 @@ export default function SubmitProjectFlow() {
                         >
                           <div className="workbench-project-material-copy">
                             <p className="workbench-project-material-name">
+                              {mark ? (
+                                <WorkbenchPartCode
+                                  code={mark.code}
+                                  color={mark.color}
+                                />
+                              ) : null}
                               {part.name}
                             </p>
                             {part.note?.trim() ? (
@@ -1712,7 +1723,10 @@ export default function SubmitProjectFlow() {
                       </span>
                       <div>
                         <h3 className="workbench-project-step-title">
-                          {item.title.trim() || "step"}
+                          {highlightPartText(
+                            item.title.trim() || "step",
+                            partMarks,
+                          )}
                         </h3>
                         {item.imageUrl ? (
                           <figure
@@ -1748,7 +1762,9 @@ export default function SubmitProjectFlow() {
                           {item.details
                             .filter((detail) => detail.trim())
                             .map((detail) => (
-                              <li key={detail}>{detail}</li>
+                              <li key={detail}>
+                                {highlightPartText(detail, partMarks)}
+                              </li>
                             ))}
                         </ul>
                       </div>

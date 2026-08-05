@@ -1,9 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NoteTakerSchematic from "@/components/NoteTakerSchematic";
+import WorkbenchPartCode from "@/components/WorkbenchPartCode";
 import WorkbenchProjectShell from "@/components/WorkbenchProjectShell";
 import WorkbenchSchematic from "@/components/WorkbenchSchematic";
+import { useWorkbenchAuth } from "@/components/WorkbenchAuth";
+import {
+  fetchBuildProgress,
+  highlightPartText,
+  loadBuildProgress,
+  marksForParts,
+  mergeBuildProgress,
+  persistBuildProgress,
+  saveBuildProgress,
+  type BuildProgress,
+} from "@/lib/workbenchBuildGuide";
 import {
   getPostEdit,
   mergePostDraft,
@@ -52,8 +64,11 @@ export default function WorkbenchProjectView({
   draft: initialDraft,
   useLocalEdits = true,
 }: Props) {
+  const { user, ready } = useWorkbenchAuth();
   const [author, setAuthor] = useState(initialAuthor);
   const [draft, setDraft] = useState(initialDraft);
+  const [checkedMaterials, setCheckedMaterials] = useState<string[]>([]);
+  const [checkedSteps, setCheckedSteps] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const remote = await fetchRemoteDraft(initialDraft.postId);
@@ -91,6 +106,43 @@ export default function WorkbenchProjectView({
     };
   }, [initialDraft.postId, refresh]);
 
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+
+    const local = loadBuildProgress(initialDraft.postId, user?.id);
+    const anon = user ? loadBuildProgress(initialDraft.postId, null) : local;
+    setCheckedMaterials(local.materials.length ? local.materials : anon.materials);
+    setCheckedSteps(local.steps.length ? local.steps : anon.steps);
+
+    if (!user) return;
+
+    void (async () => {
+      try {
+        const remote = await fetchBuildProgress(initialDraft.postId);
+        if (cancelled || !remote) return;
+        const merged = mergeBuildProgress(remote, mergeBuildProgress(local, anon));
+        setCheckedMaterials(merged.materials);
+        setCheckedSteps(merged.steps);
+        saveBuildProgress(initialDraft.postId, merged, user.id);
+        const changed =
+          merged.materials.length !== remote.materials.length ||
+          merged.steps.length !== remote.steps.length ||
+          merged.materials.some((id) => !remote.materials.includes(id)) ||
+          merged.steps.some((id) => !remote.steps.includes(id));
+        if (changed) {
+          await persistBuildProgress(initialDraft.postId, merged);
+        }
+      } catch {
+        // keep local checkboxes if sync fails
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialDraft.postId, ready, user?.id]);
+
   const materials = draft.parts.filter((part) => part.name.trim());
   const steps = draft.steps.filter(
     (step) =>
@@ -107,6 +159,39 @@ export default function WorkbenchProjectView({
     stripHtml(draft.postHtml) || draft.lead || initialDraft.lead;
   const hasDescription =
     Boolean(descriptionText) || /<(img|video|figure)\b/i.test(draft.postHtml);
+
+  const partMarks = useMemo(() => marksForParts(materials), [materials]);
+  const materialChecked = new Set(checkedMaterials);
+  const stepChecked = new Set(checkedSteps);
+
+  function persistProgress(nextMaterials: string[], nextSteps: string[]) {
+    const progress: BuildProgress = {
+      materials: nextMaterials,
+      steps: nextSteps,
+    };
+    setCheckedMaterials(nextMaterials);
+    setCheckedSteps(nextSteps);
+    saveBuildProgress(draft.postId, progress, user?.id);
+    if (user) {
+      void persistBuildProgress(draft.postId, progress).catch(() => {
+        // local copy already saved
+      });
+    }
+  }
+
+  function toggleMaterial(id: string) {
+    const next = materialChecked.has(id)
+      ? checkedMaterials.filter((item) => item !== id)
+      : [...checkedMaterials, id];
+    persistProgress(next, checkedSteps);
+  }
+
+  function toggleStep(id: string) {
+    const next = stepChecked.has(id)
+      ? checkedSteps.filter((item) => item !== id)
+      : [...checkedSteps, id];
+    persistProgress(checkedMaterials, next);
+  }
 
   const toc = [
     hasDescription ? { label: "description", href: "#description" } : null,
@@ -154,14 +239,43 @@ export default function WorkbenchProjectView({
 
       {materials.length > 0 ? (
         <section id="materials" className="workbench-project-section">
-          <h2 className="workbench-project-heading">materials</h2>
+          <div className="workbench-section-head">
+            <h2 className="workbench-project-heading">materials</h2>
+            <p className="workbench-progress-meta">
+              {Math.min(materialChecked.size, materials.length)} /{" "}
+              {materials.length} gathered
+            </p>
+          </div>
           <div className="workbench-project-materials">
-            {materials.map((item) => {
+            {materials.map((item, index) => {
               const buy = item.buyUrl;
+              const mark = partMarks[index];
+              const done = materialChecked.has(item.id);
               return (
-                <div key={item.id} className="workbench-project-material">
+                <div
+                  key={item.id}
+                  className={
+                    done
+                      ? "workbench-project-material is-checked"
+                      : "workbench-project-material"
+                  }
+                >
+                  <label className="workbench-check">
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      onChange={() => toggleMaterial(item.id)}
+                    />
+                    <span className="workbench-check-box" aria-hidden="true" />
+                    <span className="workbench-sr-only">
+                      {done ? "unmark" : "mark"} {item.name}
+                    </span>
+                  </label>
                   <div className="workbench-project-material-copy">
                     <p className="workbench-project-material-name">
+                      {mark ? (
+                        <WorkbenchPartCode code={mark.code} color={mark.color} />
+                      ) : null}
                       {item.name}
                     </p>
                     {item.note ? (
@@ -191,53 +305,80 @@ export default function WorkbenchProjectView({
 
       {steps.length > 0 ? (
         <section id="steps" className="workbench-project-section">
-          <h2 className="workbench-project-heading">steps</h2>
+          <div className="workbench-section-head">
+            <h2 className="workbench-project-heading">steps</h2>
+            <p className="workbench-progress-meta">
+              {Math.min(stepChecked.size, steps.length)} / {steps.length} done
+            </p>
+          </div>
           <ol className="workbench-project-steps">
-            {steps.map((step, i) => (
-              <li key={step.id} className="workbench-project-step">
-                <span className="workbench-project-step-num">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h3 className="workbench-project-step-title">{step.title}</h3>
-                  {step.imageUrl ? (
-                    <figure
-                      className="workbench-figure workbench-step-figure"
-                      style={{
-                        width: `${snapWorkbenchImageWidth(step.imageWidth ?? 100)}%`,
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        className="workbench-step-image"
-                        src={step.imageUrl}
-                        alt=""
-                      />
-                      {step.imageCaption?.trim() ? (
-                        <figcaption className="workbench-figure-caption">
-                          {step.imageCaption.trim()}
-                        </figcaption>
-                      ) : null}
-                    </figure>
-                  ) : null}
-                  {step.videoUrl ? (
-                    <video
-                      className="workbench-step-video"
-                      src={step.videoUrl}
-                      controls
-                      playsInline
+            {steps.map((step, i) => {
+              const done = stepChecked.has(step.id);
+              return (
+                <li
+                  key={step.id}
+                  className={
+                    done
+                      ? "workbench-project-step is-checked"
+                      : "workbench-project-step"
+                  }
+                >
+                  <label className="workbench-check workbench-check--step">
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      onChange={() => toggleStep(step.id)}
                     />
-                  ) : null}
-                  <ul className="workbench-project-step-details">
-                    {step.details
-                      .filter((detail) => detail.trim())
-                      .map((detail) => (
-                        <li key={detail}>{detail}</li>
-                      ))}
-                  </ul>
-                </div>
-              </li>
-            ))}
+                    <span className="workbench-check-box" aria-hidden="true" />
+                    <span className="workbench-project-step-num">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </label>
+                  <div>
+                    <h3 className="workbench-project-step-title">
+                      {highlightPartText(step.title, partMarks)}
+                    </h3>
+                    {step.imageUrl ? (
+                      <figure
+                        className="workbench-figure workbench-step-figure"
+                        style={{
+                          width: `${snapWorkbenchImageWidth(step.imageWidth ?? 100)}%`,
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          className="workbench-step-image"
+                          src={step.imageUrl}
+                          alt=""
+                        />
+                        {step.imageCaption?.trim() ? (
+                          <figcaption className="workbench-figure-caption">
+                            {step.imageCaption.trim()}
+                          </figcaption>
+                        ) : null}
+                      </figure>
+                    ) : null}
+                    {step.videoUrl ? (
+                      <video
+                        className="workbench-step-video"
+                        src={step.videoUrl}
+                        controls
+                        playsInline
+                      />
+                    ) : null}
+                    <ul className="workbench-project-step-details">
+                      {step.details
+                        .filter((detail) => detail.trim())
+                        .map((detail) => (
+                          <li key={detail}>
+                            {highlightPartText(detail, partMarks)}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </section>
       ) : null}

@@ -54,6 +54,21 @@ create policy "likes are publicly readable"
   to anon, authenticated
   using (true);
 
+-- Build-along progress (one row per signed-in user per post)
+create table if not exists public.build_progress (
+  post_id text not null,
+  user_id text not null,
+  materials jsonb not null default '[]'::jsonb,
+  steps jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create index if not exists build_progress_user_id_idx
+  on public.build_progress (user_id);
+
+alter table public.build_progress enable row level security;
+
 -- Mailing list signups
 create table if not exists public.mailing_list_emails (
   email text primary key,
