@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { socialPreviewSrc } from "@/lib/socialHints";
 
 type Props = {
@@ -20,19 +20,28 @@ export default function WorkbenchProjectCover({
   onClick,
 }: Props) {
   const link = socialLink?.trim() || "";
+  const uploaded = coverImage?.trim() || "";
   const [failed, setFailed] = useState(false);
-  const socialSrc = !coverImage && link && !failed ? socialPreviewSrc(link) : "";
-  const src = coverImage || socialSrc;
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uploaded, link]);
+
+  const socialSrc = !uploaded && link && !failed ? socialPreviewSrc(link) : "";
+  const src = uploaded || socialSrc;
 
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        key={src}
         className="workbench-project-cover"
         src={src}
         alt={title}
         onClick={onClick}
-        onError={() => setFailed(true)}
+        onError={() => {
+          if (!uploaded) setFailed(true);
+        }}
       />
     );
   }

@@ -76,8 +76,7 @@ export default function WorkbenchProjectView({
     if (remote?.draft) {
       next = mergePostDraft(initialDraft, remote.draft);
       if (remote.author) setAuthor(remote.author);
-    }
-    if (useLocalEdits) {
+    } else if (useLocalEdits) {
       next = mergePostDraft(next, getPostEdit(initialDraft.postId));
     }
     setDraft(next);

@@ -105,7 +105,7 @@ function buildNoteTakerDraft(): WorkbenchPostDraft {
     lead: LEAD,
     postHtml: `<p>${LEAD}</p>`,
     socialLink: REEL_URL,
-    coverImage: null,
+    coverImage: "/projects/note-taker/cover.jpg",
     parts: materials.map((item, index) => ({
       id: `mat-${index + 1}`,
       name: item.name,

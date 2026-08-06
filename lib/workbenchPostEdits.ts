@@ -61,11 +61,22 @@ function isDataUrl(value: string | null | undefined) {
   return Boolean(value && value.startsWith("data:"));
 }
 
+function mediaUrl(value?: string | null) {
+  const trimmed = value?.trim() || "";
+  return trimmed || null;
+}
+
 /** Drop base64 media so localStorage does not blow past browser quota. */
 export function slimDraftForLocalCache(draft: WorkbenchPostDraft): WorkbenchPostDraft {
+  const previous = readAll()[draft.postId];
+  const previousCover = mediaUrl(previous?.coverImage);
   return {
     ...draft,
-    coverImage: isDataUrl(draft.coverImage) ? null : draft.coverImage,
+    coverImage: isDataUrl(draft.coverImage)
+      ? previousCover && !isDataUrl(previousCover)
+        ? previousCover
+        : null
+      : draft.coverImage,
     postHtml: draft.postHtml.replace(
       /src=(["'])data:[^"']+\1/gi,
       'src=$1$1',
@@ -150,6 +161,8 @@ export function mergePostDraft(
     ...base,
     ...overlay,
     postId: base.postId,
+    // Cached edits often store null after stripping data-URLs — don't wipe a real cover.
+    coverImage: mediaUrl(overlay.coverImage) || mediaUrl(base.coverImage),
     parts: overlay.parts?.length ? overlay.parts : base.parts,
     steps: overlay.steps?.length ? overlay.steps : base.steps,
     schematics: overlay.schematics?.length ? overlay.schematics : base.schematics,
